@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { HeartWindow } from "@/lib/mock";
 import { formatTimeRange } from "@/lib/format";
+import { crossImpacts } from "@/lib/impact";
 import { PersonChip } from "@/components/PersonChip";
 
 const W = 1000;
@@ -244,6 +245,29 @@ export function HeartChart({ window: win }: { window: HeartWindow }) {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* The same event, across the other metrics */}
+              <div className="mt-4 border-t border-ink/8 pt-4">
+                <p className="mb-2 text-[11px] uppercase tracking-wider text-ink/40">
+                  Across your other metrics
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {crossImpacts(selected).map((c) => (
+                    <span
+                      key={c.metric}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                        c.tone === "good"
+                          ? "border-sage/30 bg-sage/10 text-sage-deep"
+                          : c.tone === "bad"
+                            ? "border-accent/25 bg-accent/8 text-accent-deep"
+                            : "border-white/60 bg-white/40 text-ink/60"
+                      }`}
+                    >
+                      {c.metric} <span className="font-semibold">{c.value}</span>
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </motion.div>

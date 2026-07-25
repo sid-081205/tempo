@@ -51,10 +51,12 @@ export function CalendarClient({
   weeks,
   events,
   todayKey,
+  source,
 }: {
   weeks: string[][];
   events: CalEvent[];
   todayKey: string;
+  source: "google" | "mock";
 }) {
   const [weekIdx, setWeekIdx] = useState(1);
   const [selected, setSelected] = useState<CalEvent | null>(null);
@@ -104,18 +106,33 @@ export function CalendarClient({
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="rise rise-2 mb-4 flex flex-wrap gap-4 px-1 text-xs text-ink/55">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-sage/70" /> restores you
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-white/90 ring-1 ring-line" />{" "}
-          neutral
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-accent/60" /> costs you
-        </span>
+      {/* Legend + source */}
+      <div className="rise rise-2 mb-4 flex flex-wrap items-center justify-between gap-3 px-1 text-xs text-ink/55">
+        <div className="flex flex-wrap gap-4">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-sage/70" /> restores you
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-white/90 ring-1 ring-line" />{" "}
+            neutral
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-accent/60" /> costs you
+          </span>
+        </div>
+        {source === "google" ? (
+          <span className="flex items-center gap-1.5 rounded-full border border-sage/30 bg-sage/10 px-3 py-1 font-medium text-sage-deep">
+            <span className="h-1.5 w-1.5 rounded-full bg-sage-deep" />
+            Live from Google Calendar
+          </span>
+        ) : (
+          <a
+            href="/settings"
+            className="rounded-full border border-white/60 bg-white/40 px-3 py-1 font-medium text-ink/55 transition-colors hover:bg-white/70"
+          >
+            Sample data · connect Google Calendar →
+          </a>
+        )}
       </div>
 
       {/* Grid */}

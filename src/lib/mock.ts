@@ -7,6 +7,7 @@ import type {
   Insight,
   PendingInvite,
   Person,
+  Workout,
 } from "./types";
 
 /* ------------------------------------------------------------------ */
@@ -531,6 +532,10 @@ export function metricsForDay(date: Date): DayMetrics {
     .filter((e) => ["sync", "oneOnOne", "review", "external"].includes(e.kind))
     .reduce((acc, e) => acc + (e.endMin - e.startMin), 0);
 
+  const workoutMin = todayEvents
+    .filter((e) => e.kind === "workout")
+    .reduce((acc, e) => acc + (e.endMin - e.startMin), 0);
+
   const hrv = Math.round(64 - prevMeetingHours * 2.6 + (r() - 0.5) * 6);
   const sleepHours =
     Math.round((7.9 - prevMeetingHours * 0.28 + (r() - 0.5) * 0.7) * 10) / 10;
@@ -545,17 +550,44 @@ export function metricsForDay(date: Date): DayMetrics {
   );
   const strain = Math.max(
     10,
-    Math.min(95, Math.round(30 + (meetingMin / 60) * 9 + (r() - 0.5) * 8)),
+    Math.min(
+      95,
+      Math.round(30 + (meetingMin / 60) * 9 + workoutMin * 0.45 + (r() - 0.5) * 8),
+    ),
+  );
+  const recovery = Math.max(
+    20,
+    Math.min(99, Math.round(hrv * 0.9 + sleepScore * 0.35 - prevMeetingHours * 1.5)),
+  );
+  const sleepEfficiency = Math.max(
+    72,
+    Math.min(97, Math.round(88 - prevMeetingHours * 1.1 + (r() - 0.5) * 5)),
+  );
+  const respRate =
+    Math.round((14.2 + prevMeetingHours * 0.12 + (r() - 0.5) * 0.6) * 10) / 10;
+  const deepH =
+    Math.round(sleepHours * (0.22 - prevMeetingHours * 0.006) * 10) / 10;
+  const remH = Math.round(sleepHours * (0.24 + (r() - 0.5) * 0.03) * 10) / 10;
+  const lightH = Math.round((sleepHours - deepH - remH) * 10) / 10;
+  const calories = Math.round(
+    1750 + workoutMin * 8.5 + (meetingMin / 60) * 25 + (r() - 0.5) * 120,
   );
 
   return {
     day: key,
     hrv,
     restingHr,
+    recovery,
     sleepHours,
     sleepScore,
+    sleepEfficiency,
+    respRate,
+    deepH,
+    remH,
+    lightH,
     energy,
     strain,
+    calories,
     meetingHours: Math.round((meetingMin / 60) * 10) / 10,
   };
 }
@@ -565,6 +597,45 @@ export function metricsForLastDays(days: number): DayMetrics[] {
   const out: DayMetrics[] = [];
   for (let i = days - 1; i >= 0; i--) out.push(metricsForDay(addDays(today, -i)));
   return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* Workouts                                                            */
+/* ------------------------------------------------------------------ */
+
+const ACTIVITY_FOR: Record<string, string> = {
+  "Morning run": "Run",
+  "Long run": "Run",
+};
+
+export function getWorkouts(days: number): Workout[] {
+  const today = todayUtc();
+  const out: Workout[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const date = addDays(today, -i);
+    const key = dayKey(date);
+    const r = rng("workout:" + key);
+    for (const e of eventsForDay(date)) {
+      if (e.kind !== "workout") continue;
+      if (i === 0 && e.startMin > nowMinutes()) continue;
+      const durationMin = e.endMin - e.startMin;
+      const avgHr = Math.round(148 + (r() - 0.5) * 10);
+      out.push({
+        id: e.id + "-w",
+        day: key,
+        title: e.title,
+        activity: ACTIVITY_FOR[e.title] ?? "Workout",
+        startMin: e.startMin,
+        durationMin,
+        avgHr,
+        maxHr: avgHr + Math.round(18 + r() * 10),
+        calories: Math.round(durationMin * (9 + r() * 2.5)),
+        strain: Math.round(Math.min(21, durationMin * 0.16 + 6 + r() * 2) * 10) / 10,
+        hasGps: true,
+      });
+    }
+  }
+  return out.reverse();
 }
 
 /* ------------------------------------------------------------------ */

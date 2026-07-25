@@ -5,50 +5,89 @@ import { AnimatePresence, motion } from "motion/react";
 import type { Insight } from "@/lib/types";
 
 export function InsightCard({ insight }: { insight: Insight }) {
+  const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
 
   return (
-    <article className="glass-strong rounded-3xl p-5 transition-transform duration-300 hover:-translate-y-0.5">
-      {insight.stat && (
-        <div className="mb-3 flex items-baseline gap-2">
-          <span className="text-2xl font-semibold tracking-tight text-accent-deep">
-            {insight.stat}
-          </span>
-          <span className="text-[11px] uppercase tracking-wider text-ink/40">
-            {insight.statLabel}
-          </span>
-        </div>
-      )}
-      <h3 className="mb-1.5 text-[15px] font-semibold leading-snug">
-        {insight.title}
-      </h3>
-      <p className="text-[13px] leading-relaxed text-ink/70">{insight.body}</p>
+    <article className="glass-strong overflow-hidden rounded-3xl transition-transform duration-300 hover:-translate-y-0.5">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 p-5 text-left"
+        aria-expanded={open}
+      >
+        <h3 className="text-[15px] font-bold leading-snug tracking-tight">
+          {insight.title}
+        </h3>
+        <motion.span
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/50 text-ink/55"
+        >
+          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </motion.span>
+      </button>
 
-      {insight.action && (
-        <div className="mt-4">
-          <AnimatePresence mode="wait">
-            {done ? (
-              <motion.p
-                key="done"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-[13px] font-medium text-sage-deep"
-              >
-                Done. Tempo will handle it.
-              </motion.p>
-            ) : (
-              <motion.button
-                key="action"
-                exit={{ opacity: 0, y: -6 }}
-                onClick={() => setDone(true)}
-                className="btn-ink px-4 py-2 text-xs"
-              >
-                {insight.action}
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 pb-5">
+              {insight.stat && (
+                <div className="mb-3 flex items-baseline gap-2">
+                  <span className="text-2xl font-semibold tracking-tight text-accent-deep">
+                    {insight.stat}
+                  </span>
+                  <span className="text-[11px] uppercase tracking-wider text-ink/40">
+                    {insight.statLabel}
+                  </span>
+                </div>
+              )}
+              <p className="text-[13px] leading-relaxed text-ink/70">
+                {insight.body}
+              </p>
+
+              {insight.action && (
+                <div className="mt-4">
+                  <AnimatePresence mode="wait">
+                    {done ? (
+                      <motion.p
+                        key="done"
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-[13px] font-medium text-sage-deep"
+                      >
+                        Done. Tempo will handle it.
+                      </motion.p>
+                    ) : (
+                      <motion.button
+                        key="action"
+                        exit={{ opacity: 0, y: -6 }}
+                        onClick={() => setDone(true)}
+                        className="btn-ink px-4 py-2 text-xs"
+                      >
+                        {insight.action}
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </article>
   );
 }

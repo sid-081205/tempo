@@ -1,9 +1,10 @@
-import { addDays, dayKey, eventsForRange, todayUtc } from "@/lib/mock";
+import { addDays, dayKey, todayUtc } from "@/lib/mock";
+import { getCalendarData } from "@/lib/calendar";
 import { CalendarClient } from "./CalendarClient";
 
 export const dynamic = "force-dynamic";
 
-export default function CalendarPage() {
+export default async function CalendarPage() {
   const today = todayUtc();
   // Monday of the current week (getUTCDay: Sun=0).
   const dow = today.getUTCDay();
@@ -11,7 +12,7 @@ export default function CalendarPage() {
 
   // Three weeks: previous, current, next.
   const start = addDays(monday, -7);
-  const events = eventsForRange(start, 21);
+  const { source, events } = await getCalendarData(start, 21);
 
   const weeks = [0, 1, 2].map((w) =>
     Array.from({ length: 7 }, (_, i) => dayKey(addDays(start, w * 7 + i))),
@@ -22,6 +23,7 @@ export default function CalendarPage() {
       weeks={weeks}
       events={events}
       todayKey={dayKey(today)}
+      source={source}
     />
   );
 }

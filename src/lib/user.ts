@@ -20,10 +20,11 @@ export async function getAppUser(): Promise<AppUser> {
     return { ...DEMO_USER, isDemo: true };
   }
 
-  const name =
+  const rawName =
     (user.user_metadata?.full_name as string | undefined) ??
     user.email?.split("@")[0] ??
     "there";
+  const name = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
   return { name, email: user.email ?? "", isDemo: false };
 }

@@ -65,13 +65,50 @@ export interface HeartPoint {
 
 export interface DayMetrics {
   day: string;
+  // Recovery
   hrv: number;
   restingHr: number;
+  recovery: number; // 0-100
+  // Sleep
   sleepHours: number;
   sleepScore: number;
+  sleepEfficiency: number; // %
+  respRate: number; // breaths/min
+  deepH: number;
+  remH: number;
+  lightH: number;
+  // Physiology
   energy: number; // 0-100
   strain: number; // 0-100
+  calories: number; // kcal
   meetingHours: number;
+}
+
+export interface Workout {
+  id: string;
+  day: string;
+  title: string;
+  activity: string;
+  startMin: number;
+  durationMin: number;
+  avgHr: number;
+  maxHr: number;
+  calories: number;
+  strain: number;
+  hasGps: boolean;
+}
+
+export interface JournalEntry {
+  id: string;
+  createdAt: string; // ISO
+  feeling: string;
+  note: string;
+}
+
+export interface CrossImpact {
+  metric: string;
+  value: string;
+  tone: "good" | "bad" | "neutral";
 }
 
 export type InsightCategory = "trends" | "schedule" | "future";

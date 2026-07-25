@@ -34,8 +34,8 @@ export default function InsightsPage() {
           <span className="italic text-accent-deep">to your body.</span>
         </h1>
         <p className="max-w-xl text-base leading-relaxed text-ink/70">
-          Every card pairs a physiological signal with the life context that
-          explains it. State and context, side by side.
+          Every line pairs a physiological signal with the life context that
+          explains it. Press one to open it up.
         </p>
       </div>
 

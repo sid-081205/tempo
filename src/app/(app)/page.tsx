@@ -2,17 +2,19 @@ import {
   getHeartWindow,
   getPendingInvite,
   getTodayStory,
+  getWorkouts,
   metricsForLastDays,
   todayUtc,
   dayKey,
 } from "@/lib/mock";
 import { formatDayLabelFull } from "@/lib/format";
 import { getAppUser } from "@/lib/user";
-import { DashboardClient } from "./DashboardClient";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { PulseClient } from "./PulseClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+export default async function PulsePage() {
   const user = await getAppUser();
 
   const windows = {
@@ -21,6 +23,7 @@ export default async function HomePage() {
     "7d": getHeartWindow("7d"),
   };
   const metrics = metricsForLastDays(14);
+  const workouts = getWorkouts(14);
   const invite = getPendingInvite();
   const story = getTodayStory();
 
@@ -29,13 +32,15 @@ export default async function HomePage() {
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 
   return (
-    <DashboardClient
+    <PulseClient
       greeting={`${greeting}, ${user.name}.`}
       dateLabel={formatDayLabelFull(dayKey(todayUtc()))}
       story={story}
       windows={windows}
       metrics={metrics}
+      workouts={workouts}
       invite={invite}
+      authEnabled={isSupabaseConfigured}
     />
   );
 }

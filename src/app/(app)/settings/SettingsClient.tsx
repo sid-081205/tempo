@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { CONNECTORS, type Connector } from "@/lib/connectors";
+import type { ConnectionStatus } from "@/lib/composio";
 
 const AUTONOMY_LEVELS = [
   {
@@ -32,36 +34,14 @@ const GOALS = [
   "Fewer meetings",
 ];
 
-const CONNECTORS = [
-  { id: "gcal", name: "Google Calendar", detail: "Events, invites, attendees" },
-  { id: "gmail", name: "Gmail", detail: "Communication load and tone" },
-  { id: "slack", name: "Slack", detail: "Pings, after-hours activity" },
-  { id: "teams", name: "Microsoft Teams", detail: "Meetings and calls" },
-  { id: "notion", name: "Notion", detail: "Open loops and pending pressure" },
-];
-
-const WEARABLES = [
-  { id: "apple", name: "Apple Health", detail: "Primary source", primary: true },
-  { id: "whoop", name: "WHOOP", detail: "Strain, recovery, journals" },
-  { id: "oura", name: "Oura", detail: "Sleep staging, readiness" },
-  { id: "fitbit", name: "Fitbit", detail: "Steps, heart rate" },
-  { id: "strava", name: "Strava", detail: "Workouts" },
-  { id: "juno", name: "Juno", detail: "Symptoms, meds, pace" },
-  { id: "flo", name: "Flo", detail: "Cycle tracking" },
-];
-
-const DEFAULT_CONNECTED = ["gcal", "apple", "whoop"];
-
 interface Prefs {
   autonomy: number;
   goals: string[];
-  connected: string[];
 }
 
 const DEFAULT_PREFS: Prefs = {
   autonomy: 1,
   goals: ["Better sleep", "Less stress"],
-  connected: DEFAULT_CONNECTED,
 };
 
 export function SettingsClient({
@@ -79,39 +59,74 @@ export function SettingsClient({
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [loaded, setLoaded] = useState(false);
 
+  const [connectorsEnabled, setConnectorsEnabled] = useState<boolean | null>(null);
+  const [statuses, setStatuses] = useState<Record<string, ConnectionStatus>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const pollUntil = useRef(0);
+
+  const refreshConnections = useCallback(async () => {
+    try {
+      const res = await fetch("/api/connections");
+      const data = (await res.json()) as {
+        enabled: boolean;
+        statuses: Record<string, ConnectionStatus>;
+      };
+      setConnectorsEnabled(data.enabled);
+      setStatuses(data.statuses ?? {});
+    } catch {
+      setConnectorsEnabled(false);
+    }
+  }, []);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem("tempo:prefs");
-      // Hydrating persisted prefs after mount is the intended pattern here:
-      // localStorage doesn't exist during SSR.
+      // localStorage doesn't exist during SSR; hydrate after mount.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
     } catch {
       // Corrupt prefs: fall back to defaults.
     }
     setLoaded(true);
-  }, []);
+    void refreshConnections();
+  }, [refreshConnections]);
 
   useEffect(() => {
     if (loaded) localStorage.setItem("tempo:prefs", JSON.stringify(prefs));
   }, [prefs, loaded]);
 
-  function toggleGoal(goal: string) {
-    setPrefs((p) => ({
-      ...p,
-      goals: p.goals.includes(goal)
-        ? p.goals.filter((g) => g !== goal)
-        : [...p.goals, goal],
-    }));
-  }
+  // While an OAuth window is open, poll for completion.
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (Date.now() < pollUntil.current) void refreshConnections();
+    }, 4000);
+    return () => clearInterval(id);
+  }, [refreshConnections]);
 
-  function toggleConnection(id: string) {
-    setPrefs((p) => ({
-      ...p,
-      connected: p.connected.includes(id)
-        ? p.connected.filter((c) => c !== id)
-        : [...p.connected, id],
-    }));
+  async function connect(connector: Connector) {
+    if (!connector.toolkit || busy) return;
+    setBusy(connector.id);
+    setConnectError(null);
+    try {
+      const res = await fetch("/api/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connectorId: connector.id }),
+      });
+      const data = (await res.json()) as { redirectUrl?: string; error?: string };
+      if (data.redirectUrl) {
+        window.open(data.redirectUrl, "_blank", "noopener");
+        setStatuses((s) => ({ ...s, [connector.toolkit!]: "pending" }));
+        pollUntil.current = Date.now() + 3 * 60 * 1000;
+      } else {
+        setConnectError(data.error ?? "Something went sideways. Try again.");
+      }
+    } catch {
+      setConnectError("Couldn't reach the connector service. Try again.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function signOut() {
@@ -123,6 +138,8 @@ export function SettingsClient({
   }
 
   const level = AUTONOMY_LEVELS[prefs.autonomy];
+  const contextConnectors = CONNECTORS.filter((c) => c.kind === "context");
+  const healthConnectors = CONNECTORS.filter((c) => c.kind === "health");
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -195,7 +212,14 @@ export function SettingsClient({
             return (
               <button
                 key={g}
-                onClick={() => toggleGoal(g)}
+                onClick={() =>
+                  setPrefs((p) => ({
+                    ...p,
+                    goals: on
+                      ? p.goals.filter((x) => x !== g)
+                      : [...p.goals, g],
+                  }))
+                }
                 className={`rounded-full border px-4 py-2 text-[13px] font-medium transition-all duration-300 ${
                   on
                     ? "border-transparent bg-ink text-paper"
@@ -215,10 +239,13 @@ export function SettingsClient({
         title="Connectors"
         sub="Life context, via MCP tools. Why your state is what it is."
       >
-        <ConnectionList
-          items={CONNECTORS}
-          connected={prefs.connected}
-          onToggle={toggleConnection}
+        <ConnectorList
+          items={contextConnectors}
+          enabled={connectorsEnabled}
+          statuses={statuses}
+          busy={busy}
+          onConnect={connect}
+          onRefresh={refreshConnections}
         />
       </Section>
 
@@ -228,12 +255,19 @@ export function SettingsClient({
         title="Wearables & health"
         sub="Body state. What your body is doing."
       >
-        <ConnectionList
-          items={WEARABLES}
-          connected={prefs.connected}
-          onToggle={toggleConnection}
+        <ConnectorList
+          items={healthConnectors}
+          enabled={connectorsEnabled}
+          statuses={statuses}
+          busy={busy}
+          onConnect={connect}
+          onRefresh={refreshConnections}
         />
       </Section>
+
+      {connectError && (
+        <p className="rise mb-6 px-2 text-sm text-berry">{connectError}</p>
+      )}
     </div>
   );
 }
@@ -259,19 +293,25 @@ function Section({
   );
 }
 
-function ConnectionList({
+function ConnectorList({
   items,
-  connected,
-  onToggle,
+  enabled,
+  statuses,
+  busy,
+  onConnect,
+  onRefresh,
 }: {
-  items: { id: string; name: string; detail: string; primary?: boolean }[];
-  connected: string[];
-  onToggle: (id: string) => void;
+  items: Connector[];
+  enabled: boolean | null;
+  statuses: Record<string, ConnectionStatus>;
+  busy: string | null;
+  onConnect: (c: Connector) => void;
+  onRefresh: () => void;
 }) {
   return (
     <ul className="divide-y divide-ink/5">
       {items.map((item) => {
-        const on = connected.includes(item.id);
+        const status = item.toolkit ? statuses[item.toolkit] : undefined;
         return (
           <li
             key={item.id}
@@ -288,20 +328,40 @@ function ConnectionList({
               </p>
               <p className="text-xs text-ink/50">{item.detail}</p>
             </div>
-            <button
-              onClick={() => onToggle(item.id)}
-              role="switch"
-              aria-checked={on}
-              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors duration-300 ${
-                on ? "bg-ink" : "bg-ink/15"
-              }`}
-            >
+
+            {!item.toolkit ? (
+              <span className="shrink-0 rounded-full bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-ink/40">
+                Soon
+              </span>
+            ) : enabled === false ? (
               <span
-                className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-all duration-300 ${
-                  on ? "left-6" : "left-1"
-                }`}
-              />
-            </button>
+                className="shrink-0 rounded-full bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-ink/40"
+                title="Set COMPOSIO_API_KEY to enable"
+              >
+                Needs setup
+              </span>
+            ) : status === "connected" ? (
+              <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-sage/30 bg-sage/10 px-3 py-1.5 text-[11px] font-semibold text-sage-deep">
+                <span className="h-1.5 w-1.5 rounded-full bg-sage-deep" />
+                Connected
+              </span>
+            ) : status === "pending" ? (
+              <button
+                onClick={onRefresh}
+                className="shrink-0 rounded-full border border-accent/25 bg-accent/8 px-3 py-1.5 text-[11px] font-semibold text-accent-deep"
+                title="Finish signing in, then press to refresh"
+              >
+                Finishing…
+              </button>
+            ) : (
+              <button
+                onClick={() => onConnect(item)}
+                disabled={busy !== null}
+                className="btn-ink shrink-0 px-4 py-2 text-xs disabled:opacity-50"
+              >
+                {busy === item.id ? "Opening…" : "Connect"}
+              </button>
+            )}
           </li>
         );
       })}
