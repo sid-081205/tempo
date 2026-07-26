@@ -10,7 +10,7 @@ This branch wraps the full Tempo app in a native iOS shell (Capacitor + Swift Pa
 ## Run it in the iOS Simulator (fastest)
 
 ```bash
-git checkout iphone-production
+git checkout ios
 npm install
 cp .env.example .env.local   # fill in your keys (see main README)
 npm run dev                  # leave this running
