@@ -229,8 +229,8 @@ function cannedReply(text: string): string {
   if (q.includes("sleep")) {
     return `You slept ${today.sleepHours} hours. Not because of exercise. Yesterday had ${yesterday.meetingHours} hours of meetings, most of them back-to-back. Your last three worst nights all followed days like that. Tonight is recoverable: nothing after 6pm, and I'd keep it that way.`;
   }
-  if (q.includes("mom")) {
-    return `Calls with your mom drop your heart rate 6 bpm on average. It's been 15 days since the last one. Sunday 5pm is free. Want me to hold it?`;
+  if (q.includes("sam")) {
+    return `Calls with Sam drop your heart rate 6 bpm on average. It's been 15 days since the last one. Sunday 5pm is free. Want me to hold it?`;
   }
   if (q.includes("4pm") || q.includes("sync") || q.includes("energy")) {
     return `Your energy dipped every day this week around the 4pm sync. It sits exactly on your circadian low, so even a light meeting feels expensive there. Moving it to 11am would cost the team nothing and save you the daily dip.`;
@@ -242,7 +242,7 @@ function cannedReply(text: string): string {
     return `HRV is at ${today.hrv} ms today. The pattern is clean: it dips after your heaviest meeting days and recovers fully on weekends, about 12% higher on Saturday and Sunday. The variable is meetings, not training.`;
   }
   if (q.includes("who") || q.includes("see") || q.includes("friend")) {
-    return `Sid and Ava. Evenings with Sid lower your next-day strain, and walks with Ava are your most consistent recovery activity. And call your mom. It's been two weeks, and those calls drop your heart rate 6 bpm.`;
+    return `Sid and Ava. Evenings with Sid lower your next-day strain, and walks with Ava are your most consistent recovery activity. And call Sam. It's been two weeks, and those calls drop your heart rate 6 bpm.`;
   }
   return `Here's where you stand: HRV ${today.hrv} ms, sleep ${today.sleepHours} h, energy ${today.energy}/100, ${today.meetingHours} h of meetings today. Ask me why any of those look the way they do. That's the part your wearable can't answer.`;
 }

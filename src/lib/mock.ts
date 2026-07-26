@@ -71,12 +71,12 @@ export function nowMinutes(): number {
 
 export const PEOPLE: Person[] = [
   {
-    id: "mom",
-    name: "Mom",
+    id: "sam",
+    name: "Sam",
     relation: "family",
     hrDelta: -6,
     effect: "restores",
-    note: "Calls with your mom drop your heart rate 6 bpm on average.",
+    note: "Calls with Sam drop your heart rate 6 bpm on average.",
     hue: 25,
     daysSinceSeen: 15,
   },
@@ -352,14 +352,14 @@ function templatesFor(date: Date, offsetFromToday: number): Template[] {
       recoveryMin: 0,
       summary: "Your most consistent recovery activity.",
     });
-    // Mom call only appears 2+ weeks back — that's the point of the nudge.
+    // The Sam call only appears 2+ weeks back; that's the point of the nudge.
     if (offsetFromToday <= -14) {
       out.push({
-        title: "Call Mom",
+        title: "Call Sam",
         kind: "call",
         startMin: 17 * 60,
         endMin: 17 * 60 + 40,
-        attendeeIds: ["mom"],
+        attendeeIds: ["sam"],
         hrDelta: -6,
         recoveryMin: 0,
         summary: "Heart rate drops 6 bpm on average during these calls.",
@@ -851,16 +851,16 @@ export function getInsights(): Insight[] {
     },
     // Changes to the future
     {
-      id: "future-mom",
+      id: "future-sam",
       category: "future",
-      title: "Call your mom",
-      body: "Your heart rate drops an average of 6 bpm after calls with your mom. It's been two weeks since the last one. Sunday 5pm is free.",
+      title: "Call Sam",
+      body: "Your heart rate drops an average of 6 bpm after calls with Sam. It's been two weeks since the last one. Sunday 5pm is free.",
       stat: "-6 bpm",
       statLabel: "average effect",
       action: "Find a slot",
       priority: true,
       schedule: {
-        title: "Call Mom",
+        title: "Call Sam",
         day: dayKey(addDays(todayUtc(), ((7 - todayUtc().getUTCDay()) % 7) || 7)),
         startMin: 17 * 60,
         durationMin: 40,
