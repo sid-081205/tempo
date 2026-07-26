@@ -13,7 +13,7 @@ const SUGGESTIONS = [
   "Why did I sleep badly?",
   "What's on my calendar this week?",
   "Anything in my email I should act on?",
-  "Schedule a call with my mom Sunday 5pm",
+  "Schedule a call with Sam Sunday 5pm",
 ];
 
 const OPENER: Message = {
