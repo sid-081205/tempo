@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+/* Design tokens: Butter × Blue */
+/* Butter × Blue */
+:root {
+  --paper: hsl(55 42% 93%);
+  --paper-deep: hsl(55 36% 87%);
+  --ink: hsl(55 24% 15%);
+  --muted: hsl(55 12% 52%);
+  --accent: hsl(228 52% 46%);
+  --accent-deep: hsl(228 54% 36%);
+  --berry: #a8506a;
+  --card: hsl(55 45% 97%);
+  --line: hsl(55 24% 83%);
+  --phone-a: hsl(228 55% 84%);
+  --phone-b: hsl(228 50% 68%);
+  --blob-a: hsl(228 62% 70% / 0.45);
+  --blob-b: hsl(260 55% 62% / 0.32);
+  --blob-c: hsl(55 60% 82% / 0.6);
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
+  --color-berry: var(--berry);
+  --color-card: var(--card);
+  --color-line: var(--line);
+}
+
+/* ---------- glass ---------- */
+.glass {
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-grotesk), system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+/* ---------- paper grain ---------- */
+.grain::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.theme-night.grain::before { opacity: 0.08; }
+
+/* ---------- painterly drifting backdrop blobs ---------- */
+@keyframes drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6vw, -4vh) scale(1.12); }
+}
+@keyframes drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-5vw, 5vh) scale(0.92); }
+}
+@keyframes drift-c {
+  0%, 100% { transform: translate(0, 0) scale(1.05); }
+  50% { transform: translate(4vw, 6vh) scale(1); }
+}
+
+.blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  pointer-events: none;
+  will-change: transform;
+}
+.blob-a { animation: drift-a 26s ease-in-out infinite; }
+.blob-b { animation: drift-b 32s ease-in-out infinite; }
+.blob-c { animation: drift-c 38s ease-in-out infinite; }
+
+/* ---------- entrance animations ---------- */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(22px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.rise {
+  opacity: 0;
+  animation: rise 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.rise-1 { animation-delay: 0.05s; }
+.rise-2 { animation-delay: 0.18s; }
+.rise-3 { animation-delay: 0.32s; }
+.rise-4 { animation-delay: 0.46s; }
+.rise-5 { animation-delay: 0.6s; }
+
+/* scroll reveal (via IntersectionObserver) */
+.reveal {
+  opacity: 0;
+  transform: translateY(26px);
+  transition: opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ---------- iOS notification spring drop ---------- */
+@keyframes notif-in {
+  0% { opacity: 0; transform: translateY(-34px) scale(0.88); }
+  55% { opacity: 1; transform: translateY(5px) scale(1.02); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+.notif-enter {
+  animation: notif-in 0.75s cubic-bezier(0.34, 1.4, 0.44, 1) both;
+}
+
+/* subtle idle float for the phone */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(var(--tilt, 0deg)); }
+  50% { transform: translateY(-10px) rotate(var(--tilt, 0deg)); }
+}
+.float { animation: float 7s ease-in-out infinite; }
+
+/* integrations marquee */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.marquee {
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, black 12%, black 88%, transparent);
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 4.5rem;
+  animation: marquee 30s linear infinite;
+}
+
+/* soft heartbeat pulse */
+@keyframes pulse-soft {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: 0.65; }
+}
+.pulse-dot { animation: pulse-soft 1.6s ease-in-out infinite; }
+
+/* ecg trace draw */
+@keyframes ecg-draw {
+  from { stroke-dashoffset: 600; }
+  to { stroke-dashoffset: 0; }
+}
+.ecg path, .ecg polyline {
+  stroke-dasharray: 600;
+  animation: ecg-draw 3.5s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .blob-a, .blob-b, .blob-c, .pulse-dot, .float, .notif-enter, .marquee-track {
+    animation: none;
+  }
+  .rise, .notif-enter { opacity: 1; }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
