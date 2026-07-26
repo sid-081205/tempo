@@ -10,9 +10,12 @@ export interface GmailProposal {
   durationMin: number;
   attendees: string[];
   note: string;
+  /** Deep link to the Gmail message it came from. */
+  emailUrl?: string;
 }
 
 interface RawEmail {
+  id: string;
   subject: string;
   from: string;
   to: string;
@@ -32,9 +35,10 @@ function pick(...vals: unknown[]): string {
 }
 
 async function fetchRecentEmails(): Promise<RawEmail[]> {
+  // Cover both received and sent mail: proposals often live in what you sent.
   const res = await executeTool("GMAIL_FETCH_EMAILS", {
     user_id: "me",
-    query: "newer_than:7d",
+    query: "newer_than:7d (in:inbox OR in:sent)",
     max_results: 15,
     include_payload: true,
     verbose: true,
@@ -43,6 +47,7 @@ async function fetchRecentEmails(): Promise<RawEmail[]> {
 
   const data = res.data as { messages?: Record<string, unknown>[] } | undefined;
   return (data?.messages ?? []).map((m) => ({
+    id: pick(m.messageId, m.id),
     subject: pick(m.subject, m.messageSubject),
     from: pick(m.sender, m.from),
     to: pick(m.to, m.recipient),
@@ -73,7 +78,7 @@ async function extractProposals(emails: RawEmail[]): Promise<GmailProposal[]> {
     messages: [
       {
         role: "system",
-        content: `Today is ${today} (UTC). Extract meeting/call proposals from these emails: anything where people suggest meeting, calling, or scheduling something. Resolve relative dates ("sunday", "tomorrow") to concrete future dates from the email's date. Return JSON: {"proposals":[{"title":string (short, e.g. "Mechanistic interpretability chat with Rohan"),"date":"YYYY-MM-DD","start_time":"HH:MM" (24h; if ambiguous like 8:30 assume evening 20:30 unless context says morning),"duration_min":number (default 45),"attendees":[names of the other people involved],"note":string (one plain sentence: who proposed what, mention uncertainty like "Priya might join")}]}. Only include real proposals. Empty array if none.`,
+        content: `Today is ${today} (UTC). Extract meeting/call proposals from these emails: anything where people suggest meeting, calling, or scheduling something. Ignore newsletters, alerts, and marketing. Resolve relative dates ("sunday", "tomorrow") to concrete future dates from the email's date. Return JSON: {"proposals":[{"email_index":number (the [n] marker of the source email),"title":string (short, e.g. "Mechanistic interpretability chat with Rohan"),"date":"YYYY-MM-DD","start_time":"HH:MM" (24h; if ambiguous like 8:30 assume evening 20:30 unless context says morning),"duration_min":number (default 45),"attendees":[names of the other people involved],"note":string (one plain sentence: who proposed what, mention uncertainty like "Priya might join")}]}. Only include real proposals. Empty array if none.`,
       },
       { role: "user", content: emailBlock },
     ],
@@ -84,6 +89,7 @@ async function extractProposals(emails: RawEmail[]): Promise<GmailProposal[]> {
       completion.choices[0]?.message?.content ?? "{}",
     ) as {
       proposals?: {
+        email_index?: number;
         title?: string;
         date?: string;
         start_time?: string;
@@ -96,6 +102,8 @@ async function extractProposals(emails: RawEmail[]): Promise<GmailProposal[]> {
       .filter((p) => p.title && p.date && /^\d{4}-\d{2}-\d{2}$/.test(p.date))
       .map((p) => {
         const [h, m] = (p.start_time ?? "18:00").split(":").map(Number);
+        const source =
+          p.email_index != null ? emails[p.email_index] : undefined;
         return {
           title: p.title!,
           day: p.date!,
@@ -103,6 +111,9 @@ async function extractProposals(emails: RawEmail[]): Promise<GmailProposal[]> {
           durationMin: p.duration_min ?? 45,
           attendees: p.attendees ?? [],
           note: p.note ?? "Proposed over email.",
+          emailUrl: source?.id
+            ? `https://mail.google.com/mail/u/0/#all/${source.id}`
+            : undefined,
         };
       });
   } catch {
@@ -148,6 +159,8 @@ export function proposalToCalEvent(p: GmailProposal, i: number): CalEvent {
       recoveryMin: 10,
       summary: `From your Gmail: ${p.note} Not booked yet.`,
     },
+    source: "gmail",
+    sourceUrl: p.emailUrl,
   };
 }
 
@@ -166,5 +179,6 @@ export function proposalToInsight(p: GmailProposal, i: number): Insight {
       startMin: p.startMin,
       durationMin: p.durationMin,
     },
+    sourceUrl: p.emailUrl,
   };
 }

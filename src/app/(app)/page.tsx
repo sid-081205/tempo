@@ -1,4 +1,5 @@
 import {
+  addDays,
   getPulseWindow,
   getTodayStory,
   getWorkouts,
@@ -6,6 +7,7 @@ import {
   todayUtc,
   dayKey,
 } from "@/lib/mock";
+import { getLiveEvents } from "@/lib/calendar";
 import { formatDayLabelFull } from "@/lib/format";
 import { getAppUser } from "@/lib/user";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -16,10 +18,16 @@ export const dynamic = "force-dynamic";
 export default async function PulsePage() {
   const user = await getAppUser();
 
+  // Real events (Google Calendar + Gmail proposals) overlay the graphs.
+  const { events: liveEvents } = await getLiveEvents(
+    addDays(todayUtc(), -7),
+    9,
+  );
+
   const windows = {
-    "6h": getPulseWindow("6h"),
-    "24h": getPulseWindow("24h"),
-    "7d": getPulseWindow("7d"),
+    "6h": getPulseWindow("6h", liveEvents),
+    "24h": getPulseWindow("24h", liveEvents),
+    "7d": getPulseWindow("7d", liveEvents),
   };
   const metrics = metricsForLastDays(14);
   const workouts = getWorkouts(14);

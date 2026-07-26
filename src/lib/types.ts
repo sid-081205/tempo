@@ -55,6 +55,10 @@ export interface CalEvent {
   endMin: number;
   attendeeIds: string[];
   impact: EventImpact;
+  /** Where Tempo learned about this event. */
+  source?: "google" | "gmail";
+  /** Deep link to the origin (calendar event page, Gmail message). */
+  sourceUrl?: string;
 }
 
 export interface HeartPoint {
@@ -132,6 +136,8 @@ export interface Insight {
   action?: string;
   /** When set, the action really schedules this via Google Calendar. */
   schedule?: ScheduleRequest;
+  /** Deep link to where this insight came from (e.g. the Gmail message). */
+  sourceUrl?: string;
 }
 
 export interface PendingInvite {

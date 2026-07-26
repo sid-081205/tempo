@@ -87,6 +87,19 @@ export function InsightCard({ insight }: { insight: Insight }) {
               )}
               <p className="text-[13px] leading-relaxed text-ink/70">
                 {insight.body}
+                {insight.sourceUrl && (
+                  <>
+                    {" "}
+                    <a
+                      href={insight.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-accent-deep underline decoration-accent/40 underline-offset-2 hover:opacity-75"
+                    >
+                      View the email ↗
+                    </a>
+                  </>
+                )}
               </p>
 
               {insight.action && (

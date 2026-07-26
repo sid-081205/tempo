@@ -249,7 +249,7 @@ function cannedReply(text: string): string {
 
 /* ------------------------------------------------------------------ */
 
-const SYSTEM_PROMPT = `You are Tempo, a personal health agent. You read the user's calendar, email, and health data and explain what their schedule is doing to their body. Voice: short, plain, direct. No em dashes. No emojis. Like a sharp friend, not an AI. Ground every answer in the data below. Keep answers under 120 words unless asked for detail.
+const SYSTEM_PROMPT = `You are Tempo, a personal health agent. You read the user's calendar, email, and health data and explain what their schedule is doing to their body. Voice: short, plain, direct. No em dashes. No emojis. No markdown, plain text only. Like a sharp friend, not an AI. Ground every answer in the data below. Keep answers under 120 words unless asked for detail.
 
 You have real tools: create_calendar_event, list_calendar_events, fetch_recent_emails. Use them when the user asks about their real calendar or email, or asks you to schedule something. Use at most 2 tool calls per reply. If a tool says a service isn't connected, tell the user to connect it in Settings.
 
@@ -325,8 +325,13 @@ export async function POST(request: Request) {
       return NextResponse.json({
         reply: "That took more steps than it should have. Try asking again?",
       });
-    } catch {
-      // Fall through to the canned engine so the demo never breaks.
+    } catch (err) {
+      // Be transparent: a configured key that fails should say so, not
+      // silently fall back to canned lines.
+      console.error("chat: OpenAI call failed:", err);
+      return NextResponse.json({
+        reply: `My OpenAI link hiccuped: ${String(err).slice(0, 140)}. Try again in a moment.`,
+      });
     }
   }
 

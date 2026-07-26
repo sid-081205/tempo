@@ -556,7 +556,10 @@ function metricSeriesForDay(
   return points;
 }
 
-export function getPulseWindow(range: Range): PulseWindow {
+export function getPulseWindow(
+  range: Range,
+  extraEvents: CalEvent[] = [],
+): PulseWindow {
   const today = todayUtc();
   const nowMin = nowMinutes();
   const step = range === "7d" ? 30 : 5;
@@ -567,6 +570,12 @@ export function getPulseWindow(range: Range): PulseWindow {
   // Window ends at "now"; starts windowMin earlier (may reach into previous days).
   const startAbsFromToday = nowMin - windowMin;
   const firstDayOffset = Math.floor(startAbsFromToday / (24 * 60));
+
+  const extrasByDay = new Map<string, CalEvent[]>();
+  for (const e of extraEvents) {
+    if (!extrasByDay.has(e.day)) extrasByDay.set(e.day, []);
+    extrasByDay.get(e.day)!.push(e);
+  }
 
   const events: PulseWindow["events"] = [];
   const seriesById = new Map<MetricId, HeartPoint[]>(
@@ -605,6 +614,16 @@ export function getPulseWindow(range: Range): PulseWindow {
       const endT = dayStartT + e.endMin;
       const visibleUntil = dayStartT + until;
       if (endT >= 0 && startT <= Math.min(windowMin, visibleUntil)) {
+        events.push({ ...e, startT: Math.max(0, startT), endT: Math.min(windowMin, endT) });
+      }
+    }
+
+    // Live events (Google Calendar, Gmail proposals) for this day: not
+    // clipped at "now", only at the window edge.
+    for (const e of extrasByDay.get(dayKey(date)) ?? []) {
+      const startT = dayStartT + e.startMin;
+      const endT = dayStartT + e.endMin;
+      if (endT >= 0 && startT <= windowMin) {
         events.push({ ...e, startT: Math.max(0, startT), endT: Math.min(windowMin, endT) });
       }
     }

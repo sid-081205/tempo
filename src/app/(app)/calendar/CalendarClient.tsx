@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { CalEvent } from "@/lib/types";
 import { formatShortDay, formatTime, formatTimeRange } from "@/lib/format";
 import { PersonChip } from "@/components/PersonChip";
+import { SourceLink } from "@/components/EventDetail";
 
 const DAY_START = 7 * 60;
 const DAY_END = 22 * 60;
@@ -242,10 +243,13 @@ export function CalendarClient({
               className="glass-strong w-full max-w-md rounded-[28px] bg-card/80 p-7"
               onClick={(e) => e.stopPropagation()}
             >
-              <p className="eyebrow mb-2 text-ink/45">
-                {formatShortDay(selected.day)} ·{" "}
-                {formatTimeRange(selected.startMin, selected.endMin)}
-              </p>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="eyebrow text-ink/45">
+                  {formatShortDay(selected.day)} ·{" "}
+                  {formatTimeRange(selected.startMin, selected.endMin)}
+                </p>
+                <SourceLink event={selected} />
+              </div>
               <h2 className="mb-2 text-2xl font-medium tracking-tight">
                 {selected.title}
               </h2>

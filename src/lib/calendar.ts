@@ -69,6 +69,7 @@ function predictImpact(
 interface GoogleEvent {
   id?: string;
   summary?: string;
+  htmlLink?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
   attendees?: { email?: string }[];
@@ -93,7 +94,7 @@ function toCalEvent(g: GoogleEvent): CalEvent | null {
   const { kind, ...impact } = predictImpact(title, attendeeCount, endMin - startMin);
 
   return {
-    id: g.id ?? `${day}-${startMin}`,
+    id: `g-${g.id ?? `${day}-${startMin}`}`,
     title,
     kind,
     day,
@@ -101,26 +102,26 @@ function toCalEvent(g: GoogleEvent): CalEvent | null {
     endMin,
     attendeeIds: [],
     impact,
+    source: "google",
+    sourceUrl: g.htmlLink,
   };
 }
 
 /**
- * Everything visible at once: generated demo events as the base layer, with
- * real Google Calendar events and Gmail-detected proposals merged on top
- * when those sources are connected.
+ * Live events only: real Google Calendar events and Gmail-detected meeting
+ * proposals in the given range. Empty when those sources aren't connected.
  */
-export async function getCalendarData(
+export async function getLiveEvents(
   start: Date,
   days: number,
-): Promise<CalendarData> {
-  const events: CalEvent[] = eventsForRange(start, days);
-  const live: CalendarData["live"] = [];
-  const endKey = dayKey(addDays(start, days));
+): Promise<{ events: CalEvent[]; live: ("google" | "gmail")[] }> {
+  const events: CalEvent[] = [];
+  const live: ("google" | "gmail")[] = [];
   const startKey = dayKey(start);
+  const endKey = dayKey(addDays(start, days));
 
-  if (!getComposio()) return { live, events };
+  if (!getComposio()) return { events, live };
 
-  // Real Google Calendar events.
   try {
     const statuses = await getConnectionStatuses();
     if (statuses["googlecalendar"] === "connected") {
@@ -144,10 +145,9 @@ export async function getCalendarData(
       }
     }
   } catch {
-    // Live calendar unavailable; the base layer still renders.
+    // Live calendar unavailable; callers still render their base layer.
   }
 
-  // Meeting proposals found in Gmail.
   try {
     const proposals = await getGmailProposals();
     const proposalEvents = proposals
@@ -158,8 +158,22 @@ export async function getCalendarData(
       live.push("gmail");
     }
   } catch {
-    // Same: never block the calendar on a live source.
+    // Same: never block on a live source.
   }
 
-  return { live, events };
+  return { events, live };
+}
+
+/**
+ * Everything visible at once: generated demo events as the base layer, with
+ * real Google Calendar events and Gmail-detected proposals merged on top
+ * when those sources are connected.
+ */
+export async function getCalendarData(
+  start: Date,
+  days: number,
+): Promise<CalendarData> {
+  const base = eventsForRange(start, days);
+  const { events: liveEvents, live } = await getLiveEvents(start, days);
+  return { live, events: [...base, ...liveEvents] };
 }

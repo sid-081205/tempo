@@ -6,13 +6,40 @@ import { crossImpacts } from "@/lib/impact";
 import { effectColor } from "@/components/charts/MetricChart";
 import { PersonChip } from "@/components/PersonChip";
 
+export function SourceLink({ event }: { event: CalEvent }) {
+  if (!event.source) return null;
+  const label =
+    event.source === "google" ? "Google Calendar" : "found in Gmail";
+  const chip = (
+    <span className="inline-flex items-center gap-1 rounded-full border border-accent/25 bg-accent/8 px-2.5 py-1 text-[11px] font-semibold text-accent-deep">
+      <span className="h-1.5 w-1.5 rounded-full bg-accent-deep" />
+      {label}
+      {event.sourceUrl && <span aria-hidden>↗</span>}
+    </span>
+  );
+  return event.sourceUrl ? (
+    <a
+      href={event.sourceUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="transition-opacity hover:opacity-75"
+      title={event.source === "google" ? "Open in Google Calendar" : "Open the email in Gmail"}
+    >
+      {chip}
+    </a>
+  ) : (
+    chip
+  );
+}
+
 export function EventDetail({ event }: { event: CalEvent }) {
   return (
     <div className="glass-strong rounded-3xl p-5">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-base font-semibold">{event.title}</h3>
-        <span className="text-xs text-ink/50">
+        <span className="flex items-center gap-2 text-xs text-ink/50">
           {formatTimeRange(event.startMin, event.endMin)}
+          <SourceLink event={event} />
         </span>
       </div>
       <p className="mb-4 text-sm leading-relaxed text-ink/70">
