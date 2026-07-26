@@ -66,7 +66,12 @@ export async function deleteToolkitAccounts(
   let deleted = 0;
   for (const item of res.items ?? []) {
     if (item.toolkit?.slug?.toLowerCase() !== toolkit) continue;
-    if (staleOnly && (item.status === "ACTIVE" || item.status === "INITIATED")) {
+    // In-flight attempts (INITIATED/INITIALIZING) are not stale: deleting
+    // them would break an OAuth window the user still has open.
+    if (
+      staleOnly &&
+      ["ACTIVE", "INITIATED", "INITIALIZING"].includes(item.status)
+    ) {
       continue;
     }
     try {
