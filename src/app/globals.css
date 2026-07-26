@@ -29,12 +29,25 @@ html {
   scroll-behavior: smooth;
 }
 
+html {
+  background: var(--color-paper);
+}
+
 body {
   background: var(--color-paper);
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  /* iOS safe areas (0 everywhere else) */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Sticky elements clear the notch on iOS, plain 1rem elsewhere. */
+.top-safe {
+  top: max(1rem, env(safe-area-inset-top));
 }
 
 ::selection {

@@ -16,14 +16,16 @@ export function Nav({ userName }: { userName: string }) {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-4 z-40 px-4">
-      <div className="glass-strong mx-auto flex max-w-5xl items-center justify-between rounded-full py-2 pl-5 pr-2">
+    <header className="top-safe sticky z-40 px-3 sm:px-4">
+      <div className="glass-strong mx-auto flex max-w-5xl items-center justify-between rounded-full py-2 pl-4 pr-2 sm:pl-5">
         <Link href="/" className="flex items-center gap-2">
           <Logo className="h-5 w-5 text-ink" />
-          <span className="text-lg font-semibold tracking-tight">Tempo</span>
+          <span className="hidden text-lg font-semibold tracking-tight min-[440px]:inline">
+            Tempo
+          </span>
         </Link>
 
-        <nav className="flex items-center gap-0.5 text-sm font-medium">
+        <nav className="flex items-center gap-0.5 text-xs font-medium sm:text-sm">
           {TABS.map((tab) => {
             const active =
               tab.href === "/"
@@ -33,7 +35,7 @@ export function Nav({ userName }: { userName: string }) {
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`rounded-full px-3.5 py-2 transition-all duration-300 sm:px-4 ${
+                className={`rounded-full px-2.5 py-2 transition-all duration-300 sm:px-4 ${
                   active
                     ? "bg-white text-accent shadow-sm"
                     : "text-ink/60 hover:text-ink"
