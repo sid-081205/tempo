@@ -1,4 +1,5 @@
 import { getInsights } from "@/lib/mock";
+import { getGmailProposals, proposalToInsight } from "@/lib/gmail";
 import type { Insight, InsightCategory } from "@/lib/types";
 import { InsightCard } from "./InsightCard";
 
@@ -22,8 +23,12 @@ const CATEGORIES: { id: InsightCategory; label: string; blurb: string }[] = [
   },
 ];
 
-export default function InsightsPage() {
-  const insights = getInsights();
+export default async function InsightsPage() {
+  const proposals = await getGmailProposals();
+  const insights: Insight[] = [
+    ...proposals.map(proposalToInsight),
+    ...getInsights(),
+  ];
 
   return (
     <div>

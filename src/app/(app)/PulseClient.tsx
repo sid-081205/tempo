@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { MetricSeries, PulseWindow, Range } from "@/lib/mock";
-import type { DayMetrics, PendingInvite, Workout } from "@/lib/types";
-import { formatShortDay, formatTime, formatTimeRange } from "@/lib/format";
+import type { DayMetrics, Workout } from "@/lib/types";
+import { formatShortDay, formatTime } from "@/lib/format";
 import { MetricChart, effectColor } from "@/components/charts/MetricChart";
 import { DailyBars, DailyLine } from "@/components/charts/DailyChart";
 import { EventDetail } from "@/components/EventDetail";
-import { PersonChip } from "@/components/PersonChip";
-import { LogoTile } from "@/components/Logo";
 import { Journal } from "@/components/Journal";
 
 const RANGES: { id: Range; label: string }[] = [
@@ -31,7 +29,6 @@ export function PulseClient({
   windows,
   metrics,
   workouts,
-  invite,
   authEnabled,
 }: {
   greeting: string;
@@ -40,12 +37,10 @@ export function PulseClient({
   windows: Record<Range, PulseWindow>;
   metrics: DayMetrics[];
   workouts: Workout[];
-  invite: PendingInvite;
   authEnabled: boolean;
 }) {
   const [range, setRange] = useState<Range>("24h");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [inviteHandled, setInviteHandled] = useState<string | null>(null);
 
   const today = metrics[metrics.length - 1];
   const win = windows[range];
@@ -76,60 +71,6 @@ export function PulseClient({
           {story}
         </p>
       </div>
-
-      {/* Invite triage */}
-      <section className="rise rise-2 drop-spring glass-strong mb-8 rounded-[28px] p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-start gap-3.5">
-            <LogoTile size={36} />
-            <div>
-              <p className="text-sm font-semibold">
-                New invite: {invite.title}
-                <span className="font-normal text-ink/50"> · from {invite.from}</span>
-              </p>
-              <p className="mb-1.5 text-xs text-ink/50">
-                {invite.dayLabel}, {formatTimeRange(invite.startMin, invite.endMin)}
-              </p>
-              <p className="mb-2 max-w-lg text-[13px] leading-snug text-ink/75">
-                {invite.verdict}
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {invite.attendeeIds.map((id) => (
-                  <PersonChip key={id} personId={id} />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <AnimatePresence mode="wait">
-            {inviteHandled ? (
-              <motion.p
-                key="handled"
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-sm font-medium text-sage-deep"
-              >
-                {inviteHandled}
-              </motion.p>
-            ) : (
-              <motion.div key="actions" exit={{ opacity: 0, y: -6 }} className="flex gap-2">
-                <button
-                  onClick={() => setInviteHandled("Accepted, with a 20 min buffer after.")}
-                  className="btn-ink px-4 py-2.5 text-xs"
-                >
-                  Accept + buffer
-                </button>
-                <button
-                  onClick={() => setInviteHandled("Declined. Good call.")}
-                  className="rounded-full border border-white/60 bg-white/40 px-4 py-2.5 text-xs font-semibold text-ink/70 transition-colors hover:bg-white/70"
-                >
-                  Decline
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </section>
 
       {/* Controls: range + events */}
       <div className="rise rise-3 mb-4 flex flex-wrap items-center justify-between gap-3">

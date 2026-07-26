@@ -12,7 +12,7 @@ export default async function CalendarPage() {
 
   // Three weeks: previous, current, next.
   const start = addDays(monday, -7);
-  const { source, events } = await getCalendarData(start, 21);
+  const { live, events } = await getCalendarData(start, 21);
 
   const weeks = [0, 1, 2].map((w) =>
     Array.from({ length: 7 }, (_, i) => dayKey(addDays(start, w * 7 + i))),
@@ -23,7 +23,7 @@ export default async function CalendarPage() {
       weeks={weeks}
       events={events}
       todayKey={dayKey(today)}
-      source={source}
+      live={live}
     />
   );
 }

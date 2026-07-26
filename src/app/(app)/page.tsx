@@ -1,6 +1,5 @@
 import {
   getPulseWindow,
-  getPendingInvite,
   getTodayStory,
   getWorkouts,
   metricsForLastDays,
@@ -24,7 +23,6 @@ export default async function PulsePage() {
   };
   const metrics = metricsForLastDays(14);
   const workouts = getWorkouts(14);
-  const invite = getPendingInvite();
   const story = getTodayStory();
 
   const hour = new Date().getUTCHours();
@@ -39,7 +37,6 @@ export default async function PulsePage() {
       windows={windows}
       metrics={metrics}
       workouts={workouts}
-      invite={invite}
       authEnabled={isSupabaseConfigured}
     />
   );

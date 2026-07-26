@@ -113,6 +113,15 @@ export interface CrossImpact {
 
 export type InsightCategory = "trends" | "schedule" | "future";
 
+export interface ScheduleRequest {
+  title: string;
+  /** ISO date YYYY-MM-DD */
+  day: string;
+  startMin: number;
+  durationMin: number;
+  attendeeEmails?: string[];
+}
+
 export interface Insight {
   id: string;
   category: InsightCategory;
@@ -121,6 +130,8 @@ export interface Insight {
   stat?: string;
   statLabel?: string;
   action?: string;
+  /** When set, the action really schedules this via Google Calendar. */
+  schedule?: ScheduleRequest;
 }
 
 export interface PendingInvite {

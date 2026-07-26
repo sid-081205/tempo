@@ -48,3 +48,55 @@ export async function getConnectionStatuses(): Promise<
   }
   return map;
 }
+
+/**
+ * Delete connected accounts for a toolkit. With `staleOnly`, only removes
+ * expired/failed ones (used before re-linking).
+ */
+export async function deleteToolkitAccounts(
+  toolkit: string,
+  { staleOnly = false }: { staleOnly?: boolean } = {},
+): Promise<number> {
+  const composio = getComposio();
+  if (!composio) return 0;
+
+  const res = await composio.connectedAccounts.list({
+    userIds: [composioUserId()],
+  });
+  let deleted = 0;
+  for (const item of res.items ?? []) {
+    if (item.toolkit?.slug?.toLowerCase() !== toolkit) continue;
+    if (staleOnly && (item.status === "ACTIVE" || item.status === "INITIATED")) {
+      continue;
+    }
+    try {
+      await composio.connectedAccounts.delete(item.id);
+      deleted++;
+    } catch {
+      // Best effort; a failed delete shouldn't block the rest.
+    }
+  }
+  return deleted;
+}
+
+/** Execute a Composio tool for our user, with version pinning handled. */
+export async function executeTool(
+  slug: string,
+  args: Record<string, unknown>,
+): Promise<{ successful: boolean; data: unknown; error?: string | null }> {
+  const composio = getComposio();
+  if (!composio) {
+    return { successful: false, data: null, error: "Composio not configured" };
+  }
+  const result = await composio.tools.execute(slug, {
+    userId: composioUserId(),
+    version: "latest",
+    dangerouslySkipVersionCheck: true,
+    arguments: args,
+  });
+  return {
+    successful: result.successful,
+    data: result.data,
+    error: result.error,
+  };
+}

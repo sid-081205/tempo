@@ -7,6 +7,36 @@ import type { Insight } from "@/lib/types";
 export function InsightCard({ insight }: { insight: Insight }) {
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function act() {
+    if (!insight.schedule) {
+      setDone(true);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/actions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schedule: insight.schedule }),
+      });
+      const data = (await res.json()) as { message?: string; error?: string };
+      if (data.message) {
+        setResult(data.message);
+        setDone(true);
+      } else {
+        setError(data.error ?? "That didn't work. Try again.");
+      }
+    } catch {
+      setError("Couldn't reach the calendar. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <article className="glass-strong overflow-hidden rounded-3xl transition-transform duration-300 hover:-translate-y-0.5">
@@ -69,19 +99,23 @@ export function InsightCard({ insight }: { insight: Insight }) {
                         animate={{ opacity: 1, y: 0 }}
                         className="text-[13px] font-medium text-sage-deep"
                       >
-                        Done. Tempo will handle it.
+                        {result ?? "Done. Tempo will handle it."}
                       </motion.p>
                     ) : (
                       <motion.button
                         key="action"
                         exit={{ opacity: 0, y: -6 }}
-                        onClick={() => setDone(true)}
-                        className="btn-ink px-4 py-2 text-xs"
+                        onClick={act}
+                        disabled={busy}
+                        className="btn-ink px-4 py-2 text-xs disabled:opacity-60"
                       >
-                        {insight.action}
+                        {busy ? "Booking…" : insight.action}
                       </motion.button>
                     )}
                   </AnimatePresence>
+                  {error && (
+                    <p className="mt-2 text-xs text-berry">{error}</p>
+                  )}
                 </div>
               )}
             </div>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   composioUserId,
+  deleteToolkitAccounts,
   getComposio,
   getConnectionStatuses,
 } from "@/lib/composio";
@@ -45,6 +46,9 @@ export async function POST(request: Request) {
   }
 
   try {
+    // Clear out expired/failed attempts so re-linking never collides.
+    await deleteToolkitAccounts(connector.toolkit, { staleOnly: true });
+
     // Prefer the non-deprecated link() flow when an auth config already
     // exists; authorize() creates one (Composio managed) on first use.
     const configs = await composio.authConfigs.list({
@@ -70,6 +74,29 @@ export async function POST(request: Request) {
     }
     return NextResponse.json(
       { error: `Couldn't start the ${connector.name} connection: ${message}` },
+      { status: 502 },
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  const composio = getComposio();
+  if (!composio) {
+    return NextResponse.json({ error: "Composio isn't configured." }, { status: 400 });
+  }
+
+  const { connectorId } = (await request.json()) as { connectorId?: string };
+  const connector = CONNECTORS.find((c) => c.id === connectorId);
+  if (!connector?.toolkit) {
+    return NextResponse.json({ error: "Unknown connector." }, { status: 400 });
+  }
+
+  try {
+    const deleted = await deleteToolkitAccounts(connector.toolkit);
+    return NextResponse.json({ ok: true, deleted });
+  } catch (err) {
+    return NextResponse.json(
+      { error: `Couldn't disconnect ${connector.name}: ${String(err)}` },
       { status: 502 },
     );
   }

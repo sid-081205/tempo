@@ -837,6 +837,12 @@ export function getInsights(): Insight[] {
       stat: "-6 bpm",
       statLabel: "average effect",
       action: "Find a slot",
+      schedule: {
+        title: "Call Mom",
+        day: dayKey(addDays(todayUtc(), ((7 - todayUtc().getUTCDay()) % 7) || 7)),
+        startMin: 17 * 60,
+        durationMin: 40,
+      },
     },
     {
       id: "future-deepwork",

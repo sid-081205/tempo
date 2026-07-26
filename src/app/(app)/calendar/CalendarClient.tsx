@@ -51,12 +51,12 @@ export function CalendarClient({
   weeks,
   events,
   todayKey,
-  source,
+  live,
 }: {
   weeks: string[][];
   events: CalEvent[];
   todayKey: string;
-  source: "google" | "mock";
+  live: ("google" | "gmail")[];
 }) {
   const [weekIdx, setWeekIdx] = useState(1);
   const [selected, setSelected] = useState<CalEvent | null>(null);
@@ -120,17 +120,20 @@ export function CalendarClient({
             <span className="h-2.5 w-2.5 rounded-full bg-accent/60" /> costs you
           </span>
         </div>
-        {source === "google" ? (
+        {live.length > 0 ? (
           <span className="flex items-center gap-1.5 rounded-full border border-sage/30 bg-sage/10 px-3 py-1 font-medium text-sage-deep">
             <span className="h-1.5 w-1.5 rounded-full bg-sage-deep" />
-            Live from Google Calendar
+            Live:{" "}
+            {live
+              .map((s) => (s === "google" ? "Google Calendar" : "Gmail"))
+              .join(" + ")}
           </span>
         ) : (
           <a
             href="/settings"
             className="rounded-full border border-white/60 bg-white/40 px-3 py-1 font-medium text-ink/55 transition-colors hover:bg-white/70"
           >
-            Sample data · connect Google Calendar →
+            Connect Google Calendar →
           </a>
         )}
       </div>

@@ -1,9 +1,11 @@
 import type { CalEvent, EventKind } from "./types";
 import { addDays, dayKey, eventsForRange } from "./mock";
-import { composioUserId, getComposio, getConnectionStatuses } from "./composio";
+import { getGmailProposals, proposalToCalEvent } from "./gmail";
+import { executeTool, getComposio, getConnectionStatuses } from "./composio";
 
 export interface CalendarData {
-  source: "google" | "mock";
+  /** Which live sources contributed events (demo data is always included). */
+  live: ("google" | "gmail")[];
   events: CalEvent[];
 }
 
@@ -103,51 +105,61 @@ function toCalEvent(g: GoogleEvent): CalEvent | null {
 }
 
 /**
- * Real Google Calendar events via Composio when connected; mock otherwise.
+ * Everything visible at once: generated demo events as the base layer, with
+ * real Google Calendar events and Gmail-detected proposals merged on top
+ * when those sources are connected.
  */
 export async function getCalendarData(
   start: Date,
   days: number,
 ): Promise<CalendarData> {
-  const fallback = (): CalendarData => ({
-    source: "mock",
-    events: eventsForRange(start, days),
-  });
+  const events: CalEvent[] = eventsForRange(start, days);
+  const live: CalendarData["live"] = [];
+  const endKey = dayKey(addDays(start, days));
+  const startKey = dayKey(start);
 
-  const composio = getComposio();
-  if (!composio) return fallback();
+  if (!getComposio()) return { live, events };
 
+  // Real Google Calendar events.
   try {
     const statuses = await getConnectionStatuses();
-    if (statuses["googlecalendar"] !== "connected") return fallback();
-
-    const timeMin = start.toISOString();
-    const timeMax = addDays(start, days).toISOString();
-
-    const result = await composio.tools.execute("GOOGLECALENDAR_EVENTS_LIST", {
-      userId: composioUserId(),
-      version: "latest",
-      dangerouslySkipVersionCheck: true,
-      arguments: {
+    if (statuses["googlecalendar"] === "connected") {
+      const result = await executeTool("GOOGLECALENDAR_EVENTS_LIST", {
         calendarId: "primary",
-        timeMin,
-        timeMax,
+        timeMin: start.toISOString(),
+        timeMax: addDays(start, days).toISOString(),
         singleEvents: true,
         orderBy: "startTime",
         maxResults: 250,
-      },
-    });
-
-    if (!result.successful) return fallback();
-
-    const data = result.data as { items?: GoogleEvent[] } | undefined;
-    const items = data?.items ?? [];
-    const events = items
-      .map(toCalEvent)
-      .filter((e): e is CalEvent => e !== null);
-
-    return { source: "google", events };
+      });
+      if (result.successful) {
+        const data = result.data as { items?: GoogleEvent[] } | undefined;
+        const googleEvents = (data?.items ?? [])
+          .map(toCalEvent)
+          .filter((e): e is CalEvent => e !== null);
+        if (googleEvents.length) {
+          events.push(...googleEvents);
+          live.push("google");
+        }
+      }
+    }
   } catch {
-    return fallback();
+    // Live calendar unavailable; the base layer still renders.
   }
+
+  // Meeting proposals found in Gmail.
+  try {
+    const proposals = await getGmailProposals();
+    const proposalEvents = proposals
+      .map(proposalToCalEvent)
+      .filter((e) => e.day >= startKey && e.day < endKey);
+    if (proposalEvents.length) {
+      events.push(...proposalEvents);
+      live.push("gmail");
+    }
+  } catch {
+    // Same: never block the calendar on a live source.
+  }
+
+  return { live, events };
 }

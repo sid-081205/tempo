@@ -129,6 +129,29 @@ export function SettingsClient({
     }
   }
 
+  async function disconnect(connector: Connector) {
+    if (!connector.toolkit || busy) return;
+    setBusy(connector.id);
+    setConnectError(null);
+    try {
+      const res = await fetch("/api/connections", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ connectorId: connector.id }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (data.ok) {
+        setStatuses((s) => ({ ...s, [connector.toolkit!]: "disconnected" }));
+      } else {
+        setConnectError(data.error ?? "Couldn't disconnect. Try again.");
+      }
+    } catch {
+      setConnectError("Couldn't reach the connector service. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function signOut() {
     if (!authEnabled) return;
     const supabase = createClient();
@@ -245,6 +268,7 @@ export function SettingsClient({
           statuses={statuses}
           busy={busy}
           onConnect={connect}
+          onDisconnect={disconnect}
           onRefresh={refreshConnections}
         />
       </Section>
@@ -261,6 +285,7 @@ export function SettingsClient({
           statuses={statuses}
           busy={busy}
           onConnect={connect}
+          onDisconnect={disconnect}
           onRefresh={refreshConnections}
         />
       </Section>
@@ -299,6 +324,7 @@ function ConnectorList({
   statuses,
   busy,
   onConnect,
+  onDisconnect,
   onRefresh,
 }: {
   items: Connector[];
@@ -306,6 +332,7 @@ function ConnectorList({
   statuses: Record<string, ConnectionStatus>;
   busy: string | null;
   onConnect: (c: Connector) => void;
+  onDisconnect: (c: Connector) => void;
   onRefresh: () => void;
 }) {
   return (
@@ -341,18 +368,36 @@ function ConnectorList({
                 Needs setup
               </span>
             ) : status === "connected" ? (
-              <span className="flex shrink-0 items-center gap-1.5 rounded-full border border-sage/30 bg-sage/10 px-3 py-1.5 text-[11px] font-semibold text-sage-deep">
-                <span className="h-1.5 w-1.5 rounded-full bg-sage-deep" />
-                Connected
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="flex items-center gap-1.5 rounded-full border border-sage/30 bg-sage/10 px-3 py-1.5 text-[11px] font-semibold text-sage-deep">
+                  <span className="h-1.5 w-1.5 rounded-full bg-sage-deep" />
+                  Connected
+                </span>
+                <button
+                  onClick={() => onDisconnect(item)}
+                  disabled={busy !== null}
+                  className="rounded-full border border-white/60 bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-ink/55 transition-colors hover:bg-white/70 hover:text-berry disabled:opacity-50"
+                >
+                  {busy === item.id ? "…" : "Disconnect"}
+                </button>
               </span>
             ) : status === "pending" ? (
-              <button
-                onClick={onRefresh}
-                className="shrink-0 rounded-full border border-accent/25 bg-accent/8 px-3 py-1.5 text-[11px] font-semibold text-accent-deep"
-                title="Finish signing in, then press to refresh"
-              >
-                Finishing…
-              </button>
+              <span className="flex shrink-0 items-center gap-2">
+                <button
+                  onClick={onRefresh}
+                  className="rounded-full border border-accent/25 bg-accent/8 px-3 py-1.5 text-[11px] font-semibold text-accent-deep"
+                  title="Finish signing in, then press to refresh"
+                >
+                  Finishing…
+                </button>
+                <button
+                  onClick={() => onDisconnect(item)}
+                  disabled={busy !== null}
+                  className="rounded-full border border-white/60 bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-ink/55 transition-colors hover:bg-white/70 hover:text-berry disabled:opacity-50"
+                >
+                  {busy === item.id ? "…" : "Cancel"}
+                </button>
+              </span>
             ) : (
               <button
                 onClick={() => onConnect(item)}

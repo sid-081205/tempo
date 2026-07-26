@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import type OpenAI from "openai";
 import {
   PEOPLE,
   addDays,
+  dayKey,
   getInsights,
   getPendingInvite,
   getTodayStory,
@@ -10,6 +12,11 @@ import {
   metricsForLastDays,
   todayUtc,
 } from "@/lib/mock";
+import {
+  executeTool,
+  getComposio,
+  getConnectionStatuses,
+} from "@/lib/composio";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -40,10 +47,175 @@ function buildContext(): string {
   ].join("\n");
 }
 
-const SYSTEM_PROMPT = `You are Tempo, a personal health agent. You read the user's calendar and health data and explain what their schedule is doing to their body. Voice: short, plain, direct. No em dashes. No emojis. Like a sharp friend, not an AI. Ground every answer in the data below. Keep answers under 120 words unless asked for detail.
+/* ------------------------------------------------------------------ */
+/* Tools (real actions via Composio)                                   */
+/* ------------------------------------------------------------------ */
 
-DATA:
-`;
+const TOOL_DEFS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "create_calendar_event",
+      description:
+        "Create a real event on the user's Google Calendar. Use when the user asks to schedule, book, or block time.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string" },
+          start_datetime: {
+            type: "string",
+            description: "Naive local datetime YYYY-MM-DDTHH:MM:SS, no timezone suffix",
+          },
+          duration_min: { type: "integer", description: "Duration in minutes" },
+          attendee_emails: {
+            type: "array",
+            items: { type: "string" },
+            description: "Optional attendee email addresses",
+          },
+        },
+        required: ["title", "start_datetime", "duration_min"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "list_calendar_events",
+      description: "List real events from the user's Google Calendar in a time range.",
+      parameters: {
+        type: "object",
+        properties: {
+          time_min: { type: "string", description: "ISO datetime, start of range" },
+          time_max: { type: "string", description: "ISO datetime, end of range" },
+        },
+        required: ["time_min", "time_max"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "fetch_recent_emails",
+      description:
+        "Fetch the user's recent Gmail messages (subjects, senders, snippets). Use to answer questions about email or find proposed plans.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Gmail search query, e.g. 'newer_than:7d' or 'from:priya'",
+          },
+          max_results: { type: "integer", description: "Max 10" },
+        },
+        required: [],
+      },
+    },
+  },
+];
+
+async function runTool(
+  name: string,
+  rawArgs: string,
+  statuses: Record<string, string>,
+): Promise<string> {
+  let args: Record<string, unknown>;
+  try {
+    args = JSON.parse(rawArgs || "{}");
+  } catch {
+    return JSON.stringify({ error: "Bad tool arguments." });
+  }
+
+  try {
+    if (name === "create_calendar_event" || name === "list_calendar_events") {
+      if (statuses["googlecalendar"] !== "connected") {
+        return JSON.stringify({
+          error: "Google Calendar isn't connected. Ask the user to connect it in Settings.",
+        });
+      }
+    }
+    if (name === "fetch_recent_emails" && statuses["gmail"] !== "connected") {
+      return JSON.stringify({
+        error: "Gmail isn't connected. Ask the user to connect it in Settings.",
+      });
+    }
+
+    if (name === "create_calendar_event") {
+      const duration = Number(args.duration_min) || 45;
+      const result = await executeTool("GOOGLECALENDAR_CREATE_EVENT", {
+        calendar_id: "primary",
+        summary: String(args.title ?? "Tempo event"),
+        description: "Scheduled by Tempo.",
+        start_datetime: String(args.start_datetime),
+        event_duration_hour: Math.floor(duration / 60),
+        event_duration_minutes: duration % 60,
+        timezone: "UTC",
+        ...(Array.isArray(args.attendee_emails) && args.attendee_emails.length
+          ? { attendees: args.attendee_emails }
+          : {}),
+      });
+      return JSON.stringify(
+        result.successful
+          ? { ok: true, booked: args.title, at: args.start_datetime }
+          : { error: result.error ?? "Calendar refused." },
+      );
+    }
+
+    if (name === "list_calendar_events") {
+      const result = await executeTool("GOOGLECALENDAR_EVENTS_LIST", {
+        calendarId: "primary",
+        timeMin: String(args.time_min),
+        timeMax: String(args.time_max),
+        singleEvents: true,
+        orderBy: "startTime",
+        maxResults: 25,
+      });
+      if (!result.successful) {
+        return JSON.stringify({ error: result.error ?? "Calendar refused." });
+      }
+      const data = result.data as {
+        items?: {
+          summary?: string;
+          start?: { dateTime?: string; date?: string };
+          end?: { dateTime?: string };
+          attendees?: { email?: string }[];
+        }[];
+      };
+      const events = (data.items ?? []).slice(0, 25).map((e) => ({
+        title: e.summary,
+        start: e.start?.dateTime ?? e.start?.date,
+        end: e.end?.dateTime,
+        attendees: (e.attendees ?? []).map((a) => a.email),
+      }));
+      return JSON.stringify({ events }).slice(0, 2500);
+    }
+
+    if (name === "fetch_recent_emails") {
+      const result = await executeTool("GMAIL_FETCH_EMAILS", {
+        user_id: "me",
+        query: String(args.query ?? "newer_than:7d"),
+        max_results: Math.min(10, Number(args.max_results) || 8),
+        include_payload: true,
+        verbose: true,
+      });
+      if (!result.successful) {
+        return JSON.stringify({ error: result.error ?? "Gmail refused." });
+      }
+      const data = result.data as { messages?: Record<string, unknown>[] };
+      const emails = (data.messages ?? []).slice(0, 10).map((m) => ({
+        from: m.sender ?? m.from,
+        to: m.to,
+        subject: m.subject,
+        date: m.messageTimestamp ?? m.date,
+        snippet: String(m.messageText ?? m.snippet ?? "").slice(0, 280),
+      }));
+      return JSON.stringify({ emails }).slice(0, 3000);
+    }
+
+    return JSON.stringify({ error: `Unknown tool ${name}.` });
+  } catch (err) {
+    return JSON.stringify({ error: String(err).slice(0, 200) });
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* Canned fallback (no API key needed)                                 */
@@ -72,16 +244,16 @@ function cannedReply(text: string): string {
   if (q.includes("who") || q.includes("see") || q.includes("friend")) {
     return `Sid and Ava. Evenings with Sid lower your next-day strain, and walks with Ava are your most consistent recovery activity. And call your mom. It's been two weeks, and those calls drop your heart rate 6 bpm.`;
   }
-  if (q.includes("invite") || q.includes("q3") || q.includes("accept")) {
-    return `The Q3 planning review from Priya will likely cost you around 40 minutes of elevated heart rate, based on your history with that group. I'd accept it, but let me block a 20 minute buffer after so it doesn't bleed into the rest of your day.`;
-  }
-  if (q.includes("week") || q.includes("tomorrow") || q.includes("thursday")) {
-    return `Thursday is the one to watch. Product review, a Marcus call, and the 4pm sync stack up, and in your data that combination is a bad-sleep setup. One of the three can move. I'd move the sync.`;
-  }
   return `Here's where you stand: HRV ${today.hrv} ms, sleep ${today.sleepHours} h, energy ${today.energy}/100, ${today.meetingHours} h of meetings today. Ask me why any of those look the way they do. That's the part your wearable can't answer.`;
 }
 
 /* ------------------------------------------------------------------ */
+
+const SYSTEM_PROMPT = `You are Tempo, a personal health agent. You read the user's calendar, email, and health data and explain what their schedule is doing to their body. Voice: short, plain, direct. No em dashes. No emojis. Like a sharp friend, not an AI. Ground every answer in the data below. Keep answers under 120 words unless asked for detail.
+
+You have real tools: create_calendar_event, list_calendar_events, fetch_recent_emails. Use them when the user asks about their real calendar or email, or asks you to schedule something. Use at most 2 tool calls per reply. If a tool says a service isn't connected, tell the user to connect it in Settings.
+
+`;
 
 export async function POST(request: Request) {
   const { messages } = (await request.json()) as { messages: ChatMessage[] };
@@ -94,20 +266,65 @@ export async function POST(request: Request) {
 
   if (apiKey) {
     try {
-      const { default: OpenAI } = await import("openai");
-      const openai = new OpenAI({ apiKey });
-      const completion = await openai.chat.completions.create({
-        model: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
-        max_tokens: 300,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT + buildContext() },
-          ...messages.slice(-10),
-        ],
+      const { default: OpenAIClient } = await import("openai");
+      const openai = new OpenAIClient({ apiKey });
+      const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+
+      const toolsEnabled = Boolean(getComposio());
+      const statuses = toolsEnabled ? await getConnectionStatuses() : {};
+      const statusLine = toolsEnabled
+        ? `Connected services: ${Object.entries(statuses)
+            .filter(([, v]) => v === "connected")
+            .map(([k]) => k)
+            .join(", ") || "none yet"}.\nToday's date: ${dayKey(todayUtc())} (UTC).\n\n`
+        : "";
+
+      const convo: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        {
+          role: "system",
+          content: SYSTEM_PROMPT + statusLine + "DATA:\n" + buildContext(),
+        },
+        ...messages.slice(-10),
+      ];
+
+      // Bounded tool loop: at most 2 rounds of tools, then a final answer.
+      for (let round = 0; round < 3; round++) {
+        const completion = await openai.chat.completions.create({
+          model,
+          max_tokens: 400,
+          messages: convo,
+          ...(toolsEnabled && round < 2 ? { tools: TOOL_DEFS } : {}),
+        });
+
+        const msg = completion.choices[0]?.message;
+        if (!msg) break;
+
+        if (msg.tool_calls?.length) {
+          convo.push(msg);
+          for (const call of msg.tool_calls.slice(0, 2)) {
+            if (call.type !== "function") continue;
+            const output = await runTool(
+              call.function.name,
+              call.function.arguments,
+              statuses,
+            );
+            convo.push({
+              role: "tool",
+              tool_call_id: call.id,
+              content: output,
+            });
+          }
+          continue;
+        }
+
+        return NextResponse.json({
+          reply: msg.content ?? "I lost my train of thought. Ask again?",
+        });
+      }
+
+      return NextResponse.json({
+        reply: "That took more steps than it should have. Try asking again?",
       });
-      const reply =
-        completion.choices[0]?.message?.content ??
-        "I lost my train of thought. Ask again?";
-      return NextResponse.json({ reply });
     } catch {
       // Fall through to the canned engine so the demo never breaks.
     }
