@@ -56,8 +56,12 @@ export async function POST(request: Request) {
     });
     const existing = configs.items?.[0];
 
+    // allowMultiple: reconnecting (e.g. a second Google account) must not
+    // be blocked by an existing active connection.
     const connectionRequest = existing
-      ? await composio.connectedAccounts.link(composioUserId(), existing.id)
+      ? await composio.connectedAccounts.link(composioUserId(), existing.id, {
+          allowMultiple: true,
+        })
       : await composio.toolkits.authorize(composioUserId(), connector.toolkit);
 
     return NextResponse.json({ redirectUrl: connectionRequest.redirectUrl });
