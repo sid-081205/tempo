@@ -1,5 +1,5 @@
 import {
-  getHeartWindow,
+  getPulseWindow,
   getPendingInvite,
   getTodayStory,
   getWorkouts,
@@ -18,9 +18,9 @@ export default async function PulsePage() {
   const user = await getAppUser();
 
   const windows = {
-    "6h": getHeartWindow("6h"),
-    "24h": getHeartWindow("24h"),
-    "7d": getHeartWindow("7d"),
+    "6h": getPulseWindow("6h"),
+    "24h": getPulseWindow("24h"),
+    "7d": getPulseWindow("7d"),
   };
   const metrics = metricsForLastDays(14);
   const workouts = getWorkouts(14);

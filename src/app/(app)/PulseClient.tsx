@@ -2,15 +2,14 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import type { HeartWindow, Range } from "@/lib/mock";
+import type { MetricSeries, PulseWindow, Range } from "@/lib/mock";
 import type { DayMetrics, PendingInvite, Workout } from "@/lib/types";
 import { formatShortDay, formatTime, formatTimeRange } from "@/lib/format";
-import { HeartChart } from "@/components/charts/HeartChart";
+import { MetricChart, effectColor } from "@/components/charts/MetricChart";
 import { DailyBars, DailyLine } from "@/components/charts/DailyChart";
-import { Sparkline } from "@/components/charts/Sparkline";
+import { EventDetail } from "@/components/EventDetail";
 import { PersonChip } from "@/components/PersonChip";
 import { LogoTile } from "@/components/Logo";
-import { Collapsible } from "@/components/Collapsible";
 import { Journal } from "@/components/Journal";
 
 const RANGES: { id: Range; label: string }[] = [
@@ -38,13 +37,14 @@ export function PulseClient({
   greeting: string;
   dateLabel: string;
   story: string;
-  windows: Record<Range, HeartWindow>;
+  windows: Record<Range, PulseWindow>;
   metrics: DayMetrics[];
   workouts: Workout[];
   invite: PendingInvite;
   authEnabled: boolean;
 }) {
   const [range, setRange] = useState<Range>("24h");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [inviteHandled, setInviteHandled] = useState<string | null>(null);
 
   const today = metrics[metrics.length - 1];
@@ -52,7 +52,17 @@ export function PulseClient({
   const dayLabels = metrics.map((m) => String(Number(m.day.slice(8))));
   const point = (i: number, value: number) => ({ label: dayLabels[i], value });
 
-  const hrvDelta = today.hrv - metrics[metrics.length - 8].hrv;
+  const selected = win.events.find((e) => e.id === selectedId) ?? null;
+  const chipEvents = [...win.events].sort((a, b) => a.startT - b.startT);
+
+  function selectEvent(id: string | null) {
+    setSelectedId(id);
+  }
+
+  function changeRange(r: Range) {
+    setRange(r);
+    setSelectedId(null);
+  }
 
   return (
     <div>
@@ -67,62 +77,28 @@ export function PulseClient({
         </p>
       </div>
 
-      {/* Top row: stats + invite */}
-      <div className="mb-5 grid gap-5 lg:grid-cols-3">
-        <div className="rise rise-2 grid grid-cols-2 gap-4 lg:col-span-2">
-          <StatCard
-            label="HRV"
-            value={`${today.hrv} ms`}
-            sub={`${hrvDelta >= 0 ? "+" : ""}${hrvDelta} vs last wk`}
-            series={metrics.map((m) => m.hrv)}
-          />
-          <StatCard
-            label="Sleep"
-            value={`${today.sleepHours} h`}
-            sub={`score ${today.sleepScore}`}
-            series={metrics.map((m) => m.sleepHours)}
-          />
-          <StatCard
-            label="Recovery"
-            value={`${today.recovery}`}
-            sub="of 100"
-            series={metrics.map((m) => m.recovery)}
-          />
-          <StatCard
-            label="Meeting load"
-            value={`${today.meetingHours} h`}
-            sub="today"
-            series={metrics.map((m) => m.meetingHours)}
-          />
-        </div>
-
-        {/* Invite triage */}
-        <section className="rise rise-3 drop-spring glass-strong rounded-[28px] p-5">
-          <div className="mb-3 flex items-center gap-3">
-            <LogoTile size={34} />
-            <div className="min-w-0">
-              <p className="text-[13px] font-semibold leading-tight">
-                New invite
+      {/* Invite triage */}
+      <section className="rise rise-2 drop-spring glass-strong mb-8 rounded-[28px] p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <LogoTile size={36} />
+            <div>
+              <p className="text-sm font-semibold">
+                New invite: {invite.title}
+                <span className="font-normal text-ink/50"> · from {invite.from}</span>
               </p>
-              <p className="text-[11px] text-ink/40">now</p>
+              <p className="mb-1.5 text-xs text-ink/50">
+                {invite.dayLabel}, {formatTimeRange(invite.startMin, invite.endMin)}
+              </p>
+              <p className="mb-2 max-w-lg text-[13px] leading-snug text-ink/75">
+                {invite.verdict}
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {invite.attendeeIds.map((id) => (
+                  <PersonChip key={id} personId={id} />
+                ))}
+              </div>
             </div>
-          </div>
-
-          <p className="mb-1 text-sm font-semibold">
-            {invite.title}
-            <span className="font-normal text-ink/50"> · from {invite.from}</span>
-          </p>
-          <p className="mb-2 text-xs text-ink/50">
-            {invite.dayLabel}, {formatTimeRange(invite.startMin, invite.endMin)}
-          </p>
-          <p className="mb-3 text-[13px] leading-snug text-ink/75">
-            {invite.verdict}
-          </p>
-
-          <div className="mb-4 flex flex-wrap gap-1.5">
-            {invite.attendeeIds.map((id) => (
-              <PersonChip key={id} personId={id} />
-            ))}
           </div>
 
           <AnimatePresence mode="wait">
@@ -136,206 +112,179 @@ export function PulseClient({
                 {inviteHandled}
               </motion.p>
             ) : (
-              <motion.div
-                key="actions"
-                exit={{ opacity: 0, y: -6 }}
-                className="flex gap-2"
-              >
+              <motion.div key="actions" exit={{ opacity: 0, y: -6 }} className="flex gap-2">
                 <button
-                  onClick={() =>
-                    setInviteHandled("Accepted, with a 20 min buffer after.")
-                  }
-                  className="btn-ink flex-1 px-4 py-2.5 text-xs"
+                  onClick={() => setInviteHandled("Accepted, with a 20 min buffer after.")}
+                  className="btn-ink px-4 py-2.5 text-xs"
                 >
                   Accept + buffer
                 </button>
                 <button
                   onClick={() => setInviteHandled("Declined. Good call.")}
-                  className="flex-1 rounded-full border border-white/60 bg-white/40 px-4 py-2.5 text-xs font-semibold text-ink/70 transition-colors hover:bg-white/70"
+                  className="rounded-full border border-white/60 bg-white/40 px-4 py-2.5 text-xs font-semibold text-ink/70 transition-colors hover:bg-white/70"
                 >
                   Decline
                 </button>
               </motion.div>
             )}
           </AnimatePresence>
-        </section>
+        </div>
+      </section>
+
+      {/* Controls: range + events */}
+      <div className="rise rise-3 mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="glass flex rounded-full p-1 text-xs font-semibold">
+          {RANGES.map((r) => (
+            <button
+              key={r.id}
+              onClick={() => changeRange(r.id)}
+              className={`rounded-full px-4 py-2 transition-all duration-300 ${
+                range === r.id
+                  ? "bg-white text-accent shadow-sm"
+                  : "text-ink/55 hover:text-ink"
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-ink/45">
+          Press an event to see its impact on every graph below.
+        </p>
       </div>
 
-      {/* Metric sections */}
-      <div className="flex flex-col gap-5">
-        {/* Physiology */}
-        <Collapsible
-          className="rise rise-4"
-          eyebrow="Physiology"
-          headline={`${Math.round(win.currentBpm)} bpm`}
-          headlineSub="now"
-          defaultOpen
-        >
-          <div className="mb-4 flex justify-end">
-            <div className="glass flex rounded-full p-1 text-xs font-semibold">
-              {RANGES.map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => setRange(r.id)}
-                  className={`rounded-full px-3.5 py-1.5 transition-all duration-300 ${
-                    range === r.id
-                      ? "bg-white text-accent shadow-sm"
-                      : "text-ink/55 hover:text-ink"
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={range}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <HeartChart window={win} />
-            </motion.div>
-          </AnimatePresence>
-          <p className="mt-3 text-xs text-ink/45">
-            Shaded bands are calendar events. Press one to see what it did to
-            your body, across every metric.
-          </p>
-
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <MiniChart label="Strain" sub="last 14 days">
-              <DailyBars
-                points={metrics.map((m, i) => point(i, m.strain))}
-                color="hsl(228 52% 46%)"
-              />
-            </MiniChart>
-            <MiniChart label="Energy burned" sub="kcal, last 14 days">
-              <DailyBars
-                points={metrics.map((m, i) => point(i, m.calories))}
-                color="hsl(55 24% 15%)"
-                unit=" kcal"
-              />
-            </MiniChart>
-          </div>
-        </Collapsible>
-
-        {/* Recovery */}
-        <Collapsible
-          className="rise rise-5"
-          eyebrow="Recovery"
-          headline={`${today.recovery}`}
-          headlineSub="of 100 today"
-          defaultOpen
-        >
-          <div className="grid gap-4 sm:grid-cols-3">
-            <MiniChart label="HRV" sub="ms">
-              <DailyLine
-                points={metrics.map((m, i) => point(i, m.hrv))}
-                unit=" ms"
-              />
-            </MiniChart>
-            <MiniChart label="Resting heart rate" sub="bpm">
-              <DailyLine
-                points={metrics.map((m, i) => point(i, m.restingHr))}
-                color="hsl(0 45% 50%)"
-                unit=" bpm"
-              />
-            </MiniChart>
-            <MiniChart label="Recovery score" sub="of 100">
-              <DailyBars
-                points={metrics.map((m, i) => ({
-                  ...point(i, m.recovery),
-                  highlight: m.recovery >= 70,
-                }))}
-                color="hsl(140 32% 40%)"
-              />
-            </MiniChart>
-          </div>
-          <p className="mt-3 text-xs text-ink/45">
-            Dips follow your heaviest meeting days. Weekends give it back.
-          </p>
-        </Collapsible>
-
-        {/* Sleep */}
-        <Collapsible
-          className="rise rise-5"
-          eyebrow="Sleep"
-          headline={`${today.sleepHours} h`}
-          headlineSub={`score ${today.sleepScore}`}
-          defaultOpen
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <MiniChart label="Duration & stages" sub="deep · REM · light">
-              <DailyBars
-                points={metrics.map((m, i) => ({
-                  label: dayLabels[i],
-                  value: m.sleepHours,
-                  segments: [
-                    { value: m.deepH, color: STAGE_COLORS.deep },
-                    { value: m.remH, color: STAGE_COLORS.rem },
-                    { value: m.lightH, color: STAGE_COLORS.light },
-                  ],
-                }))}
-                unit=" h"
-              />
-              <div className="mt-2 flex gap-3 text-[10px] text-ink/50">
-                <span className="flex items-center gap-1">
-                  <i className="h-2 w-2 rounded-sm" style={{ background: STAGE_COLORS.deep }} />
-                  deep
-                </span>
-                <span className="flex items-center gap-1">
-                  <i className="h-2 w-2 rounded-sm" style={{ background: STAGE_COLORS.rem }} />
-                  REM
-                </span>
-                <span className="flex items-center gap-1">
-                  <i className="h-2 w-2 rounded-sm" style={{ background: STAGE_COLORS.light }} />
-                  light
-                </span>
-              </div>
-            </MiniChart>
-            <div className="grid gap-4">
-              <MiniChart label="Efficiency" sub="%" compact>
-                <DailyLine
-                  points={metrics.map((m, i) => point(i, m.sleepEfficiency))}
-                  color="hsl(140 32% 40%)"
-                  unit="%"
+      {chipEvents.length > 0 && (
+        <div className="rise rise-3 no-scrollbar -mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1">
+          {chipEvents.map((e) => {
+            const active = selectedId === e.id;
+            return (
+              <button
+                key={e.id}
+                onClick={() => selectEvent(active ? null : e.id)}
+                className={`flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all duration-300 ${
+                  active
+                    ? "border-transparent bg-ink text-paper"
+                    : "border-white/60 bg-white/40 text-ink/70 hover:bg-white/70"
+                }`}
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ background: effectColor(e.impact.effect) }}
                 />
-              </MiniChart>
-              <MiniChart label="Respiratory rate" sub="breaths/min" compact>
-                <DailyLine
-                  points={metrics.map((m, i) => point(i, m.respRate))}
-                  color="hsl(55 12% 45%)"
-                />
-              </MiniChart>
-            </div>
-          </div>
-        </Collapsible>
+                {e.title}
+                <span className={active ? "text-paper/60" : "text-ink/40"}>
+                  {formatTime(e.startMin)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-        {/* Workouts */}
-        <Collapsible
+      {/* Selected event, across every metric */}
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            key={selected.id}
+            initial={{ opacity: 0, y: 10, height: 0 }}
+            animate={{ opacity: 1, y: 0, height: "auto" }}
+            exit={{ opacity: 0, y: 6, height: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="mb-4 overflow-hidden"
+          >
+            <EventDetail event={selected} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Stacked metric graphs */}
+      <div className="flex flex-col gap-3">
+        {win.metrics.map((metric, i) => (
+          <MetricPanel
+            key={metric.id}
+            metric={metric}
+            window={win}
+            range={range}
+            selectedId={selectedId}
+            onSelectAction={selectEvent}
+            className={`rise rise-${Math.min(6, i + 3)}`}
+          />
+        ))}
+
+        {/* Daily metrics, same stacked pattern */}
+        <SimplePanel
+          label="Sleep"
+          value={`${today.sleepHours} h`}
+          sub={`score ${today.sleepScore} · efficiency ${today.sleepEfficiency}%`}
+          dot={STAGE_COLORS.deep}
           className="rise rise-6"
-          eyebrow="Workouts"
-          headline={`${workouts.filter((w) => metrics.slice(-7).some((m) => m.day === w.day)).length}`}
-          headlineSub="in the last 7 days"
-          defaultOpen={false}
         >
-          <div className="mb-4 grid gap-4 sm:grid-cols-2">
-            <MiniChart label="Daily strain" sub="last 14 days">
-              <DailyBars
-                points={metrics.map((m, i) => point(i, m.strain))}
-                color="hsl(228 52% 46%)"
-              />
-            </MiniChart>
-            <MiniChart label="Calories burned" sub="kcal">
-              <DailyLine
-                points={metrics.map((m, i) => point(i, m.calories))}
-                color="hsl(55 24% 15%)"
-              />
-            </MiniChart>
+          <DailyBars
+            points={metrics.map((m, i) => ({
+              label: dayLabels[i],
+              value: m.sleepHours,
+              segments: [
+                { value: m.deepH, color: STAGE_COLORS.deep },
+                { value: m.remH, color: STAGE_COLORS.rem },
+                { value: m.lightH, color: STAGE_COLORS.light },
+              ],
+            }))}
+            unit=" h"
+          />
+          <div className="mt-2 flex gap-3 text-[10px] text-ink/50">
+            <span className="flex items-center gap-1">
+              <i className="h-2 w-2 rounded-sm" style={{ background: STAGE_COLORS.deep }} />
+              deep
+            </span>
+            <span className="flex items-center gap-1">
+              <i className="h-2 w-2 rounded-sm" style={{ background: STAGE_COLORS.rem }} />
+              REM
+            </span>
+            <span className="flex items-center gap-1">
+              <i className="h-2 w-2 rounded-sm" style={{ background: STAGE_COLORS.light }} />
+              light
+            </span>
           </div>
+        </SimplePanel>
+
+        <SimplePanel
+          label="Recovery"
+          value={`${today.recovery}`}
+          sub="of 100 · last 14 days"
+          dot="hsl(140 32% 40%)"
+          className="rise rise-6"
+        >
+          <DailyBars
+            points={metrics.map((m, i) => ({
+              ...point(i, m.recovery),
+              highlight: m.recovery >= 70,
+            }))}
+            color="hsl(140 32% 40%)"
+          />
+        </SimplePanel>
+
+        <SimplePanel
+          label="Resting heart rate"
+          value={`${today.restingHr} bpm`}
+          sub="last 14 days"
+          dot="hsl(0 45% 50%)"
+          className="rise rise-6"
+        >
+          <DailyLine
+            points={metrics.map((m, i) => point(i, m.restingHr))}
+            color="hsl(0 45% 50%)"
+            unit=" bpm"
+          />
+        </SimplePanel>
+
+        <SimplePanel
+          label="Workouts"
+          value={`${workouts.filter((w) => metrics.slice(-7).some((m) => m.day === w.day)).length}`}
+          sub="in the last 7 days"
+          dot="hsl(140 32% 40%)"
+          defaultOpen={false}
+          className="rise rise-6"
+        >
           <ul className="space-y-2.5">
             {workouts.slice(0, 5).map((w) => (
               <li
@@ -355,8 +304,7 @@ export function PulseClient({
                     )}
                   </p>
                   <p className="text-xs text-ink/50">
-                    {formatShortDay(w.day)} · {formatTime(w.startMin)} ·{" "}
-                    {w.durationMin} min
+                    {formatShortDay(w.day)} · {formatTime(w.startMin)} · {w.durationMin} min
                   </p>
                 </div>
                 <div className="flex gap-4 text-right text-xs text-ink/60">
@@ -373,65 +321,161 @@ export function PulseClient({
               </li>
             ))}
           </ul>
-        </Collapsible>
+        </SimplePanel>
 
-        {/* Journal */}
-        <Collapsible
-          className="rise rise-6"
-          eyebrow="Journal"
-          headline="Check in"
+        <SimplePanel
+          label="Journal"
+          value="Check in"
+          sub="what sensors miss"
+          dot="hsl(55 24% 25%)"
           defaultOpen={false}
+          className="rise rise-6"
         >
           <Journal authEnabled={authEnabled} />
-        </Collapsible>
+        </SimplePanel>
       </div>
     </div>
   );
 }
 
-function StatCard({
+/* ------------------------------------------------------------------ */
+/* Panels                                                              */
+/* ------------------------------------------------------------------ */
+
+function PanelShell({
   label,
   value,
   sub,
-  series,
+  dot,
+  defaultOpen = true,
+  children,
+  className = "",
 }: {
   label: string;
   value: string;
-  sub: string;
-  series: number[];
+  sub?: string;
+  dot?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  className?: string;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
+
   return (
-    <div className="glass rounded-3xl p-5">
-      <p className="eyebrow mb-2 text-ink/45">{label}</p>
-      <p className="text-2xl font-semibold tracking-tight">
-        {value}
-        <span className="ml-1.5 text-xs font-normal text-ink/50">{sub}</span>
-      </p>
-      <div className="mt-2">
-        <Sparkline values={series} stroke="hsl(55 24% 15% / 0.45)" />
-      </div>
-    </div>
+    <section className={`glass-strong rounded-3xl ${className}`}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2.5 text-sm font-semibold">
+          {dot && (
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: dot }} />
+          )}
+          {label}
+        </span>
+        <span className="flex items-center gap-3">
+          <span className="text-sm font-semibold tracking-tight">
+            {value}
+            {sub && (
+              <span className="ml-1.5 text-xs font-normal text-ink/45">{sub}</span>
+            )}
+          </span>
+          <motion.span
+            animate={{ rotate: open ? 180 : 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/50 text-ink/55"
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+              <path
+                d="M4 6l4 4 4-4"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </motion.span>
+        </span>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 pb-5">{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </section>
   );
 }
 
-function MiniChart({
-  label,
-  sub,
-  compact = false,
-  children,
+function MetricPanel({
+  metric,
+  window: win,
+  range,
+  selectedId,
+  onSelectAction,
+  className,
 }: {
-  label: string;
-  sub?: string;
-  compact?: boolean;
-  children: React.ReactNode;
+  metric: MetricSeries;
+  window: PulseWindow;
+  range: Range;
+  selectedId: string | null;
+  onSelectAction: (id: string | null) => void;
+  className?: string;
 }) {
+  const current =
+    metric.id === "calories" || metric.id === "strain"
+      ? Math.round(metric.current)
+      : metric.current % 1 === 0
+        ? metric.current
+        : metric.current.toFixed(1);
+  const cumulative = metric.id === "strain" || metric.id === "calories";
+  const rangeLabel = RANGES.find((r) => r.id === range)?.label ?? range;
+
   return (
-    <div className={`glass rounded-3xl ${compact ? "p-4" : "p-5"}`}>
-      <p className="mb-2 text-xs font-semibold text-ink/65">
-        {label}
-        {sub && <span className="ml-1.5 font-normal text-ink/40">{sub}</span>}
-      </p>
-      {children}
-    </div>
+    <PanelShell
+      label={metric.label}
+      value={`${current}${metric.unit ? ` ${metric.unit}` : ""}`}
+      sub={cumulative ? `in the last ${rangeLabel}` : "now"}
+      dot={metric.color}
+      className={className}
+    >
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={range}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <MetricChart
+            metric={metric}
+            window={win}
+            selectedId={selectedId}
+            onSelectAction={onSelectAction}
+          />
+        </motion.div>
+      </AnimatePresence>
+    </PanelShell>
   );
+}
+
+function SimplePanel(props: {
+  label: string;
+  value: string;
+  sub?: string;
+  dot?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return <PanelShell {...props} />;
 }

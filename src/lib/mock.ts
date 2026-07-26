@@ -446,20 +446,117 @@ export function heartSeriesForDay(
 
 export type Range = "6h" | "24h" | "7d";
 
-export interface HeartWindow {
+export type MetricId = "hr" | "hrv" | "strain" | "calories" | "resp";
+
+export interface MetricSeries {
+  id: MetricId;
+  label: string;
+  unit: string;
+  color: string;
+  points: HeartPoint[];
+  current: number;
+}
+
+export interface PulseWindow {
   range: Range;
   /** Total minutes covered by the window. */
   windowMin: number;
-  /** Minute offset (within window) of "now". */
-  nowT: number;
-  points: HeartPoint[];
   events: (CalEvent & { startT: number; endT: number })[];
-  currentBpm: number;
-  /** Ticks for the x axis: [t, label] */
+  metrics: MetricSeries[];
+  /** Ticks for the shared x axis: [t, label] */
   ticks: [number, string][];
 }
 
-export function getHeartWindow(range: Range): HeartWindow {
+const METRIC_DEFS: { id: MetricId; label: string; unit: string; color: string }[] = [
+  { id: "hr", label: "Heart rate", unit: "bpm", color: "hsl(228 54% 36%)" },
+  { id: "hrv", label: "HRV", unit: "ms", color: "hsl(140 32% 34%)" },
+  { id: "strain", label: "Strain", unit: "", color: "hsl(228 52% 55%)" },
+  { id: "calories", label: "Energy burned", unit: "kcal", color: "hsl(55 24% 25%)" },
+  { id: "resp", label: "Respiratory rate", unit: "/min", color: "hsl(55 12% 45%)" },
+];
+
+/** Per-minute event contribution for a given metric. */
+function metricEventAdd(metric: MetricId, min: number, events: CalEvent[]): number {
+  if (metric === "hr") return eventContribution(min, events);
+
+  let add = 0;
+  for (const e of events) {
+    const during = min >= e.startMin && min <= e.endMin;
+    const inRecovery =
+      min > e.endMin && min <= e.endMin + e.impact.recoveryMin;
+    const decay = inRecovery
+      ? 1 - (min - e.endMin) / Math.max(1, e.impact.recoveryMin)
+      : 0;
+
+    if (metric === "hrv") {
+      const dip =
+        e.kind === "workout" ? -12 : e.impact.hrDelta > 0 ? -e.impact.hrDelta * 0.6 : -e.impact.hrDelta * 0.8;
+      if (during) add += dip;
+      else if (inRecovery) add += dip * 0.6 * decay;
+    } else if (metric === "resp") {
+      const bump = e.kind === "workout" ? 6.5 : e.impact.hrDelta * 0.06;
+      if (during) add += bump;
+      else if (inRecovery) add += bump * 0.5 * decay;
+    }
+  }
+  return add;
+}
+
+/** Per-minute accumulation rate for cumulative metrics (strain, calories). */
+function metricRate(metric: MetricId, min: number, events: CalEvent[]): number {
+  const asleep = min < 390; // ~6:30am
+  let rate = 0;
+  if (metric === "strain") rate = asleep ? 0.002 : 0.02;
+  if (metric === "calories") rate = asleep ? 0.95 : 1.2;
+
+  for (const e of events) {
+    if (min < e.startMin || min > e.endMin) continue;
+    if (metric === "strain") {
+      rate += e.kind === "workout" ? 0.33 : Math.max(0, e.impact.hrDelta) * 0.006;
+    } else {
+      rate += e.kind === "workout" ? 7.5 : Math.max(0, e.impact.hrDelta) * 0.08;
+    }
+  }
+  return rate;
+}
+
+function metricSeriesForDay(
+  metric: MetricId,
+  date: Date,
+  step: number,
+  untilMin: number,
+): HeartPoint[] {
+  if (metric === "hr") return heartSeriesForDay(date, step, untilMin);
+
+  const key = dayKey(date);
+  const events = eventsForDay(date);
+  const r = rng(metric + ":" + key);
+  const m = metricsForDay(date);
+  const points: HeartPoint[] = [];
+  const cumulative = metric === "strain" || metric === "calories";
+
+  let acc = 0;
+  let noise = 0;
+  for (let min = 0; min <= Math.min(untilMin, 24 * 60 - step); min += step) {
+    let value: number;
+    if (cumulative) {
+      acc += metricRate(metric, min, events) * step;
+      value = acc;
+    } else {
+      noise = noise * 0.7 + (r() - 0.5) * (metric === "hrv" ? 3 : 0.5);
+      const h = min / 60;
+      const base =
+        metric === "hrv"
+          ? m.hrv + 7 * Math.cos((h / 24) * Math.PI * 2) // higher overnight
+          : m.respRate + 0.5 * Math.cos((h / 24) * Math.PI * 2);
+      value = base + metricEventAdd(metric, min, events) + noise;
+    }
+    points.push({ t: min, bpm: Math.round(value * 10) / 10 });
+  }
+  return points;
+}
+
+export function getPulseWindow(range: Range): PulseWindow {
   const today = todayUtc();
   const nowMin = nowMinutes();
   const step = range === "7d" ? 30 : 5;
@@ -469,19 +566,40 @@ export function getHeartWindow(range: Range): HeartWindow {
 
   // Window ends at "now"; starts windowMin earlier (may reach into previous days).
   const startAbsFromToday = nowMin - windowMin;
-
-  const points: HeartPoint[] = [];
-  const events: HeartWindow["events"] = [];
-
   const firstDayOffset = Math.floor(startAbsFromToday / (24 * 60));
+
+  const events: PulseWindow["events"] = [];
+  const seriesById = new Map<MetricId, HeartPoint[]>(
+    METRIC_DEFS.map((d) => [d.id, []]),
+  );
+  // Cumulative metrics accumulate across the whole window, not per day,
+  // so the line never cliffs at midnight.
+  const cumulativeBase = new Map<MetricId, number>([
+    ["strain", 0],
+    ["calories", 0],
+  ]);
+
   for (let d = firstDayOffset; d <= 0; d++) {
     const date = addDays(today, d);
     const dayStartT = d * 24 * 60 - startAbsFromToday; // window-minute where this day begins
     const until = d === 0 ? nowMin : 24 * 60;
-    for (const p of heartSeriesForDay(date, step, until)) {
-      const t = dayStartT + p.t;
-      if (t >= 0 && t <= windowMin) points.push({ t, bpm: p.bpm });
+
+    for (const def of METRIC_DEFS) {
+      const target = seriesById.get(def.id)!;
+      const isCumulative = cumulativeBase.has(def.id);
+      const base = cumulativeBase.get(def.id) ?? 0;
+      const dayPoints = metricSeriesForDay(def.id, date, step, until);
+      for (const p of dayPoints) {
+        const t = dayStartT + p.t;
+        if (t >= 0 && t <= windowMin) {
+          target.push({ t, bpm: isCumulative ? p.bpm + base : p.bpm });
+        }
+      }
+      if (isCumulative && dayPoints.length) {
+        cumulativeBase.set(def.id, base + dayPoints[dayPoints.length - 1].bpm);
+      }
     }
+
     for (const e of eventsForDay(date)) {
       const startT = dayStartT + e.startMin;
       const endT = dayStartT + e.endMin;
@@ -508,9 +626,21 @@ export function getHeartWindow(range: Range): HeartWindow {
     }
   }
 
-  const currentBpm = points.length ? points[points.length - 1].bpm : 62;
+  const metrics: MetricSeries[] = METRIC_DEFS.map((def) => {
+    const points = seriesById.get(def.id)!;
+    // Re-zero cumulative series to the window start.
+    if (cumulativeBase.has(def.id) && points.length) {
+      const zero = points[0].bpm;
+      for (const p of points) p.bpm = Math.round((p.bpm - zero) * 10) / 10;
+    }
+    return {
+      ...def,
+      points,
+      current: points.length ? points[points.length - 1].bpm : 0,
+    };
+  });
 
-  return { range, windowMin, nowT: windowMin, points, events, currentBpm, ticks };
+  return { range, windowMin, events, metrics, ticks };
 }
 
 /* ------------------------------------------------------------------ */

@@ -5,7 +5,9 @@ import {
   getInsights,
   getPendingInvite,
   getTodayStory,
+  getWorkouts,
   metricsForDay,
+  metricsForLastDays,
   todayUtc,
 } from "@/lib/mock";
 
@@ -17,15 +19,23 @@ interface ChatMessage {
 function buildContext(): string {
   const today = metricsForDay(todayUtc());
   const yesterday = metricsForDay(addDays(todayUtc(), -1));
+  const last14 = metricsForLastDays(14);
+  const week = last14.slice(-7);
+  const prevWeek = last14.slice(0, 7);
+  const avg = (xs: number[]) =>
+    Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10;
+  const workouts = getWorkouts(7);
   const insights = getInsights();
   const invite = getPendingInvite();
 
   return [
-    `Today: HRV ${today.hrv} ms, resting HR ${today.restingHr} bpm, sleep ${today.sleepHours} h (score ${today.sleepScore}), energy ${today.energy}/100, meeting load ${today.meetingHours} h.`,
-    `Yesterday: ${yesterday.meetingHours} h of meetings, sleep before that ${yesterday.sleepHours} h.`,
+    `Today: HRV ${today.hrv} ms, resting HR ${today.restingHr} bpm, recovery ${today.recovery}/100, sleep ${today.sleepHours} h (score ${today.sleepScore}, efficiency ${today.sleepEfficiency}%, deep ${today.deepH} h, REM ${today.remH} h, resp rate ${today.respRate}/min), energy ${today.energy}/100, strain ${today.strain}, ~${today.calories} kcal, meeting load ${today.meetingHours} h.`,
+    `Yesterday: ${yesterday.meetingHours} h of meetings, sleep before that ${yesterday.sleepHours} h, strain ${yesterday.strain}.`,
+    `7-day averages (vs previous 7): sleep ${avg(week.map((m) => m.sleepHours))} h (${avg(prevWeek.map((m) => m.sleepHours))}), HRV ${avg(week.map((m) => m.hrv))} ms (${avg(prevWeek.map((m) => m.hrv))}), resting HR ${avg(week.map((m) => m.restingHr))} (${avg(prevWeek.map((m) => m.restingHr))}), recovery ${avg(week.map((m) => m.recovery))} (${avg(prevWeek.map((m) => m.recovery))}), meetings ${avg(week.map((m) => m.meetingHours))} h/day.`,
+    `Workouts last 7 days: ${workouts.map((w) => `${w.title} ${w.durationMin}min avg ${w.avgHr}bpm ${w.calories}kcal`).join("; ") || "none"}.`,
     `Story: ${getTodayStory()}`,
     `People (learned effects): ${PEOPLE.map((p) => `${p.name} (${p.relation}, ${p.hrDelta > 0 ? "+" : ""}${p.hrDelta} bpm, last seen ${p.daysSinceSeen}d ago)`).join("; ")}.`,
-    `Current insights: ${insights.map((i) => i.title).join("; ")}.`,
+    `Current insights: ${insights.map((i) => `${i.title} (${i.body})`).join(" | ")}`,
     `Pending invite: "${invite.title}" from ${invite.from}, predicted +${invite.predictedHrDelta} bpm and ${invite.predictedRecoveryMin} min recovery.`,
   ].join("\n");
 }
