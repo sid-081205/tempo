@@ -156,6 +156,20 @@ body {
 .rise-5 { animation-delay: 520ms; }
 .rise-6 { animation-delay: 650ms; }
 
+/* Gentle periodic wiggle for high-priority insight cards */
+@keyframes nudge {
+  0%, 12%, 100% { transform: rotate(0) translateX(0); }
+  2% { transform: rotate(-0.5deg) translateX(-1.5px); }
+  4% { transform: rotate(0.5deg) translateX(1.5px); }
+  6% { transform: rotate(-0.4deg) translateX(-1px); }
+  8% { transform: rotate(0.3deg) translateX(1px); }
+  10% { transform: rotate(-0.15deg) translateX(0); }
+}
+
+.nudge {
+  animation: nudge 5.5s ease-in-out infinite;
+}
+
 @keyframes drop-spring {
   0% {
     opacity: 0;
@@ -220,7 +234,8 @@ textarea::placeholder {
 @media (prefers-reduced-motion: reduce) {
   .blob-a,
   .blob-b,
-  .blob-c {
+  .blob-c,
+  .nudge {
     animation: none;
   }
   .rise {

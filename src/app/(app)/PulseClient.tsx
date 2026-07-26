@@ -62,7 +62,7 @@ export function PulseClient({
   return (
     <div>
       {/* Header */}
-      <div className="rise rise-1 mb-8">
+      <div className="rise rise-1 mb-6">
         <p className="eyebrow mb-3 text-accent-deep">{dateLabel}</p>
         <h1 className="mb-3 text-4xl font-medium tracking-tight sm:text-5xl">
           {greeting}
@@ -72,7 +72,27 @@ export function PulseClient({
         </p>
       </div>
 
+      {/* At a glance */}
+      <div className="rise rise-2 no-scrollbar -mx-1 mb-8 flex items-stretch gap-2.5 overflow-x-auto px-1 pb-1">
+        <div className="glass flex shrink-0 items-center gap-3 rounded-full py-2 pl-2.5 pr-5">
+          <RecoveryRing value={today.recovery} />
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-ink/45">
+              Recovery
+            </p>
+            <p className="text-sm font-semibold leading-tight">
+              {today.recovery >= 70 ? "Ready" : today.recovery >= 45 ? "Steady" : "Take it easy"}
+            </p>
+          </div>
+        </div>
+        <GlanceChip label="HRV" value={`${today.hrv} ms`} />
+        <GlanceChip label="Sleep" value={`${today.sleepHours} h`} />
+        <GlanceChip label="Resting HR" value={`${today.restingHr} bpm`} />
+        <GlanceChip label="Meetings" value={`${today.meetingHours} h`} />
+      </div>
+
       {/* Controls: range + events */}
+      <SectionLabel className="rise rise-3">Right now</SectionLabel>
       <div className="rise rise-3 mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="glass flex rounded-full p-1 text-xs font-semibold">
           {RANGES.map((r) => (
@@ -89,7 +109,8 @@ export function PulseClient({
             </button>
           ))}
         </div>
-        <p className="text-xs text-ink/45">
+        <p className="flex items-center gap-1.5 text-xs text-ink/45">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent/60" />
           Press an event to see its impact on every graph below.
         </p>
       </div>
@@ -153,6 +174,7 @@ export function PulseClient({
         ))}
 
         {/* Daily metrics, same stacked pattern */}
+        <SectionLabel className="rise rise-6 mt-4">Day by day</SectionLabel>
         <SimplePanel
           label="Sleep"
           value={`${today.sleepHours} h`}
@@ -264,6 +286,7 @@ export function PulseClient({
           </ul>
         </SimplePanel>
 
+        <SectionLabel className="rise rise-6 mt-4">You</SectionLabel>
         <SimplePanel
           label="Journal"
           value="Check in"
@@ -282,6 +305,69 @@ export function PulseClient({
 /* ------------------------------------------------------------------ */
 /* Panels                                                              */
 /* ------------------------------------------------------------------ */
+
+function SectionLabel({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`flex items-center gap-3 px-1 ${className}`}>
+      <span className="eyebrow text-ink/40">{children}</span>
+      <span className="h-px flex-1 bg-ink/8" />
+    </div>
+  );
+}
+
+function GlanceChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="glass flex shrink-0 flex-col justify-center rounded-full px-5 py-2">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-ink/45">
+        {label}
+      </p>
+      <p className="text-sm font-semibold leading-tight">{value}</p>
+    </div>
+  );
+}
+
+function RecoveryRing({ value }: { value: number }) {
+  const color =
+    value >= 70
+      ? "hsl(140 32% 40%)"
+      : value >= 45
+        ? "hsl(228 52% 46%)"
+        : "hsl(340 40% 50%)";
+  return (
+    <div className="relative h-11 w-11">
+      <svg viewBox="0 0 36 36" className="h-11 w-11 -rotate-90">
+        <circle
+          cx="18"
+          cy="18"
+          r="15.9"
+          fill="none"
+          stroke="hsl(55 24% 15% / 0.08)"
+          strokeWidth="3.4"
+        />
+        <circle
+          cx="18"
+          cy="18"
+          r="15.9"
+          fill="none"
+          stroke={color}
+          strokeWidth="3.4"
+          strokeLinecap="round"
+          strokeDasharray={`${value} 100`}
+          pathLength={100}
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold">
+        {value}
+      </span>
+    </div>
+  );
+}
 
 function PanelShell({
   label,
@@ -303,7 +389,9 @@ function PanelShell({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className={`glass-strong rounded-3xl ${className}`}>
+    <section
+      className={`glass-strong rounded-3xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_-30px_rgba(0,0,0,0.22)] ${className}`}
+    >
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"

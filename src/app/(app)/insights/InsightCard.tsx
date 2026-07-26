@@ -1,19 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Insight } from "@/lib/types";
 
-export function InsightCard({ insight }: { insight: Insight }) {
+/** How long a handled insight lingers before it slips away. */
+const DISMISS_AFTER_MS = 3200;
+
+export function InsightCard({ insight, nudgeDelay = 0 }: { insight: Insight; nudgeDelay?: number }) {
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
+  const [gone, setGone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (dismissTimer.current) clearTimeout(dismissTimer.current);
+    };
+  }, []);
+
+  function markDone(message: string | null) {
+    setResult(message);
+    setDone(true);
+    dismissTimer.current = setTimeout(() => setGone(true), DISMISS_AFTER_MS);
+  }
 
   async function act() {
     if (!insight.schedule) {
-      setDone(true);
+      markDone(null);
       return;
     }
     setBusy(true);
@@ -26,8 +43,7 @@ export function InsightCard({ insight }: { insight: Insight }) {
       });
       const data = (await res.json()) as { message?: string; error?: string };
       if (data.message) {
-        setResult(data.message);
-        setDone(true);
+        markDone(data.message);
       } else {
         setError(data.error ?? "That didn't work. Try again.");
       }
@@ -39,7 +55,31 @@ export function InsightCard({ insight }: { insight: Insight }) {
   }
 
   return (
-    <article className="glass-strong overflow-hidden rounded-3xl transition-transform duration-300 hover:-translate-y-0.5">
+    <AnimatePresence>
+      {!gone && (
+        <motion.div
+          exit={{ opacity: 0, height: 0, scale: 0.96 }}
+          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+          className="overflow-hidden"
+        >
+          {renderCard()}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  function renderCard() {
+    return (
+      <article
+        className={`glass-strong overflow-hidden rounded-3xl transition-transform duration-300 hover:-translate-y-0.5 ${
+          insight.priority && !done ? "nudge ring-1 ring-accent/20" : ""
+        }`}
+        style={
+          insight.priority && !done
+            ? { animationDelay: `${nudgeDelay}ms` }
+            : undefined
+        }
+      >
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between gap-3 p-5 text-left"
@@ -134,7 +174,8 @@ export function InsightCard({ insight }: { insight: Insight }) {
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
-    </article>
-  );
+        </AnimatePresence>
+      </article>
+    );
+  }
 }
