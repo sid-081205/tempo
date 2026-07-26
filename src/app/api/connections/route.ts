@@ -45,10 +45,17 @@ export async function POST(request: Request) {
   }
 
   try {
-    const connectionRequest = await composio.toolkits.authorize(
-      composioUserId(),
-      connector.toolkit,
-    );
+    // Prefer the non-deprecated link() flow when an auth config already
+    // exists; authorize() creates one (Composio managed) on first use.
+    const configs = await composio.authConfigs.list({
+      toolkit: connector.toolkit,
+    });
+    const existing = configs.items?.[0];
+
+    const connectionRequest = existing
+      ? await composio.connectedAccounts.link(composioUserId(), existing.id)
+      : await composio.toolkits.authorize(composioUserId(), connector.toolkit);
+
     return NextResponse.json({ redirectUrl: connectionRequest.redirectUrl });
   } catch (err) {
     const message = String(err);
