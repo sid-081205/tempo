@@ -138,6 +138,8 @@ export interface Insight {
   schedule?: ScheduleRequest;
   /** Deep link to where this insight came from (e.g. the Gmail message). */
   sourceUrl?: string;
+  /** The two or three that matter most right now; they nudge for attention. */
+  priority?: boolean;
 }
 
 export interface PendingInvite {

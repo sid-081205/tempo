@@ -54,14 +54,26 @@ export default async function InsightsPage() {
                 <p className="text-xs text-ink/50">{cat.blurb}</p>
               </div>
               <div className="flex flex-col gap-4">
-                {cards.map((ins: Insight) => (
-                  <InsightCard key={ins.id} insight={ins} />
+                {cards.map((ins: Insight, j) => (
+                  <InsightCard
+                    key={ins.id}
+                    insight={ins}
+                    nudgeDelay={(i * 3 + j) * 900}
+                  />
                 ))}
               </div>
             </section>
           );
         })}
       </div>
+
+      <p className="rise rise-5 mt-12 flex items-center justify-center gap-2 text-center text-xs text-ink/45">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sage/60" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-sage-deep/70" />
+        </span>
+        Insights refresh with every big signal. Notifications are on.
+      </p>
     </div>
   );
 }

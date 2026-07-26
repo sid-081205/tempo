@@ -819,6 +819,7 @@ export function getInsights(): Insight[] {
       stat: "-4.9 h",
       statLabel: "weekly deficit",
       action: "Protect tonight",
+      priority: true,
     },
     // Schedule related
     {
@@ -829,6 +830,7 @@ export function getInsights(): Insight[] {
       stat: "5/5",
       statLabel: "days with a dip",
       action: "Draft a move to 11am",
+      priority: true,
     },
     {
       id: "sched-backtoback",
@@ -856,6 +858,7 @@ export function getInsights(): Insight[] {
       stat: "-6 bpm",
       statLabel: "average effect",
       action: "Find a slot",
+      priority: true,
       schedule: {
         title: "Call Mom",
         day: dayKey(addDays(todayUtc(), ((7 - todayUtc().getUTCDay()) % 7) || 7)),

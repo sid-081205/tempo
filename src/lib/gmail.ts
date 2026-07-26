@@ -173,6 +173,7 @@ export function proposalToInsight(p: GmailProposal, i: number): Insight {
     stat: "Gmail",
     statLabel: "found in your email",
     action: "Schedule it",
+    priority: true,
     schedule: {
       title: p.title,
       day: p.day,
