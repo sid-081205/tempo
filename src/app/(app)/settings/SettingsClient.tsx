@@ -63,6 +63,7 @@ export function SettingsClient({
   const [statuses, setStatuses] = useState<Record<string, ConnectionStatus>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [fallbackLink, setFallbackLink] = useState<{ name: string; url: string } | null>(null);
   const pollUntil = useRef(0);
 
   const refreshConnections = useCallback(async () => {
@@ -116,7 +117,14 @@ export function SettingsClient({
       });
       const data = (await res.json()) as { redirectUrl?: string; error?: string };
       if (data.redirectUrl) {
-        window.open(data.redirectUrl, "_blank", "noopener");
+        // Popup blockers eat window.open; when that happens, surface the
+        // link so the user can open it themselves.
+        const win = window.open(data.redirectUrl, "_blank", "noopener");
+        if (!win) {
+          setFallbackLink({ name: connector.name, url: data.redirectUrl });
+        } else {
+          setFallbackLink(null);
+        }
         setStatuses((s) => ({ ...s, [connector.toolkit!]: "pending" }));
         pollUntil.current = Date.now() + 3 * 60 * 1000;
       } else {
@@ -289,6 +297,23 @@ export function SettingsClient({
           onRefresh={refreshConnections}
         />
       </Section>
+
+      {fallbackLink && (
+        <div className="glass-strong mb-6 rounded-3xl p-5 text-sm">
+          <p className="mb-2 text-ink/70">
+            Your browser blocked the sign-in window for {fallbackLink.name}.
+          </p>
+          <a
+            href={fallbackLink.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-ink inline-block px-4 py-2 text-xs"
+            onClick={() => setFallbackLink(null)}
+          >
+            Open the connect page →
+          </a>
+        </div>
+      )}
 
       {connectError && (
         <p className="rise mb-6 px-2 text-sm text-berry">{connectError}</p>
