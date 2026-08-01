@@ -36,7 +36,15 @@
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Tempo needs local network access to reach the development server on your Mac.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
