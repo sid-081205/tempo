@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import type { Insight } from "@/lib/types";
 
 /** How long a handled insight lingers before it slips away. */
 const DISMISS_AFTER_MS = 3200;
 
-export function InsightCard({ insight, nudgeDelay = 0 }: { insight: Insight; nudgeDelay?: number }) {
+export function InsightCard({ insight }: { insight: Insight }) {
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState(false);
   const [gone, setGone] = useState(false);
@@ -54,32 +53,14 @@ export function InsightCard({ insight, nudgeDelay = 0 }: { insight: Insight; nud
     }
   }
 
-  return (
-    <AnimatePresence>
-      {!gone && (
-        <motion.div
-          exit={{ opacity: 0, height: 0, scale: 0.96 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          className="overflow-hidden"
-        >
-          {renderCard()}
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
+  if (gone) return null;
 
-  function renderCard() {
-    return (
-      <article
-        className={`glass-strong overflow-hidden rounded-3xl transition-transform duration-300 hover:-translate-y-0.5 ${
-          insight.priority && !done ? "nudge ring-1 ring-accent/20" : ""
-        }`}
-        style={
-          insight.priority && !done
-            ? { animationDelay: `${nudgeDelay}ms` }
-            : undefined
-        }
-      >
+  return (
+    <article
+      className={`glass-strong overflow-hidden rounded-3xl ${
+        insight.priority && !done ? "ring-1 ring-accent/20" : ""
+      }`}
+    >
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between gap-3 p-5 text-left"
@@ -88,10 +69,10 @@ export function InsightCard({ insight, nudgeDelay = 0 }: { insight: Insight; nud
         <h3 className="text-[15px] font-bold leading-snug tracking-tight">
           {insight.title}
         </h3>
-        <motion.span
-          animate={{ rotate: open ? 180 : 0 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/50 text-ink/55"
+        <span
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/50 text-ink/55 transition-transform duration-150 ${
+            open ? "rotate-180" : ""
+          }`}
         >
           <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
             <path
@@ -102,80 +83,58 @@ export function InsightCard({ insight, nudgeDelay = 0 }: { insight: Insight; nud
               strokeLinejoin="round"
             />
           </svg>
-        </motion.span>
+        </span>
       </button>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="px-5 pb-5">
-              {insight.stat && (
-                <div className="mb-3 flex items-baseline gap-2">
-                  <span className="text-2xl font-semibold tracking-tight text-accent-deep">
-                    {insight.stat}
-                  </span>
-                  <span className="text-[11px] uppercase tracking-wider text-ink/40">
-                    {insight.statLabel}
-                  </span>
-                </div>
-              )}
-              <p className="text-[13px] leading-relaxed text-ink/70">
-                {insight.body}
-                {insight.sourceUrl && (
-                  <>
-                    {" "}
-                    <a
-                      href={insight.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-semibold text-accent-deep underline decoration-accent/40 underline-offset-2 hover:opacity-75"
-                    >
-                      View the email ↗
-                    </a>
-                  </>
-                )}
-              </p>
-
-              {insight.action && (
-                <div className="mt-4">
-                  <AnimatePresence mode="wait">
-                    {done ? (
-                      <motion.p
-                        key="done"
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="text-[13px] font-medium text-sage-deep"
-                      >
-                        {result ?? "Done. Tempo will handle it."}
-                      </motion.p>
-                    ) : (
-                      <motion.button
-                        key="action"
-                        exit={{ opacity: 0, y: -6 }}
-                        onClick={act}
-                        disabled={busy}
-                        className="btn-ink px-4 py-2 text-xs disabled:opacity-60"
-                      >
-                        {busy ? "Booking…" : insight.action}
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
-                  {error && (
-                    <p className="mt-2 text-xs text-berry">{error}</p>
-                  )}
-                </div>
-              )}
+      {open && (
+        <div className="px-5 pb-5">
+          {insight.stat && (
+            <div className="mb-3 flex items-baseline gap-2">
+              <span className="text-2xl font-semibold tracking-tight text-accent-deep">
+                {insight.stat}
+              </span>
+              <span className="text-[11px] uppercase tracking-wider text-ink/40">
+                {insight.statLabel}
+              </span>
             </div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-      </article>
-    );
-  }
+          )}
+          <p className="text-[13px] leading-relaxed text-ink/70">
+            {insight.body}
+            {insight.sourceUrl && (
+              <>
+                {" "}
+                <a
+                  href={insight.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-accent-deep underline decoration-accent/40 underline-offset-2 hover:opacity-75"
+                >
+                  View the email ↗
+                </a>
+              </>
+            )}
+          </p>
+
+          {insight.action && (
+            <div className="mt-4">
+              {done ? (
+                <p className="text-[13px] font-medium text-sage-deep">
+                  {result ?? "Done. Tempo will handle it."}
+                </p>
+              ) : (
+                <button
+                  onClick={act}
+                  disabled={busy}
+                  className="btn-ink px-4 py-2 text-xs disabled:opacity-60"
+                >
+                  {busy ? "Booking…" : insight.action}
+                </button>
+              )}
+              {error && <p className="mt-2 text-xs text-berry">{error}</p>}
+            </div>
+          )}
+        </div>
+      )}
+    </article>
+  );
 }

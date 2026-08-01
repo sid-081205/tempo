@@ -1,5 +1,6 @@
 import { getInsights } from "@/lib/mock";
 import { getGmailProposals, proposalToInsight } from "@/lib/gmail";
+import { withTimeout } from "@/lib/fast";
 import type { Insight, InsightCategory } from "@/lib/types";
 import { InsightCard } from "./InsightCard";
 
@@ -24,7 +25,8 @@ const CATEGORIES: { id: InsightCategory; label: string; blurb: string }[] = [
 ];
 
 export default async function InsightsPage() {
-  const proposals = await getGmailProposals();
+  // Never block Insights on a cold Gmail + LLM extraction.
+  const proposals = await withTimeout(getGmailProposals(), 600, []);
   const insights: Insight[] = [
     ...proposals.map(proposalToInsight),
     ...getInsights(),
@@ -32,34 +34,30 @@ export default async function InsightsPage() {
 
   return (
     <div>
-      <div className="rise rise-1 mb-10">
+      <div className="mb-8">
         <p className="eyebrow mb-3 text-accent-deep">Insights</p>
-        <h1 className="mb-3 text-4xl font-medium tracking-tight sm:text-5xl">
+        <h1 className="mb-3 text-3xl font-medium tracking-tight sm:text-4xl">
           What your schedule is doing{" "}
           <span className="italic text-accent-deep">to your body.</span>
         </h1>
-        <p className="max-w-xl text-base leading-relaxed text-ink/70">
+        <p className="max-w-xl text-sm leading-relaxed text-ink/70">
           Every line pairs a physiological signal with the life context that
           explains it. Press one to open it up.
         </p>
       </div>
 
-      <div className="grid gap-8 md:grid-cols-3 md:gap-5">
-        {CATEGORIES.map((cat, i) => {
+      <div className="flex flex-col gap-8">
+        {CATEGORIES.map((cat) => {
           const cards = insights.filter((ins) => ins.category === cat.id);
           return (
-            <section key={cat.id} className={`rise rise-${i + 2}`}>
-              <div className="mb-4 px-1">
+            <section key={cat.id}>
+              <div className="mb-3 px-1">
                 <h2 className="text-sm font-semibold">{cat.label}</h2>
                 <p className="text-xs text-ink/50">{cat.blurb}</p>
               </div>
-              <div className="flex flex-col gap-4">
-                {cards.map((ins: Insight, j) => (
-                  <InsightCard
-                    key={ins.id}
-                    insight={ins}
-                    nudgeDelay={(i * 3 + j) * 900}
-                  />
+              <div className="flex flex-col gap-3">
+                {cards.map((ins: Insight) => (
+                  <InsightCard key={ins.id} insight={ins} />
                 ))}
               </div>
             </section>
@@ -67,12 +65,9 @@ export default async function InsightsPage() {
         })}
       </div>
 
-      <p className="rise rise-5 mt-12 flex items-center justify-center gap-2 text-center text-xs text-ink/45">
-        <span className="relative flex h-2 w-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sage/60" />
-          <span className="relative inline-flex h-2 w-2 rounded-full bg-sage-deep/70" />
-        </span>
-        Insights refresh with every big signal. Notifications are on.
+      <p className="mt-10 flex items-center justify-center gap-2 text-center text-xs text-ink/45">
+        <span className="h-1.5 w-1.5 rounded-full bg-sage-deep/70" />
+        Insights refresh with every big signal.
       </p>
     </div>
   );

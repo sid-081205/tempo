@@ -1,13 +1,11 @@
 export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 export const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-/**
- * When Supabase env vars are absent the app runs in demo mode:
- * no auth wall, a stand-in user, everything else fully functional.
- */
+/** Auth is available when Supabase public keys are present. */
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
 
-export const DEMO_USER = {
-  name: "Sid",
-  email: "demo@tempo.health",
+/** Stand-in identity when auth isn't configured or no session exists yet. */
+export const LOCAL_USER = {
+  name: "You",
+  email: "",
 };

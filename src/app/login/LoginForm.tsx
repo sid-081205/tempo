@@ -58,18 +58,16 @@ export function LoginForm({ configured }: { configured: boolean }) {
   if (!configured) {
     return (
       <div className="glass-strong rounded-3xl p-7 text-center">
-        <p className="mb-1 text-sm font-semibold">Demo mode</p>
+        <p className="mb-1 text-sm font-semibold">Continue</p>
         <p className="mb-6 text-sm leading-relaxed text-ink/60">
-          Supabase isn&apos;t configured yet. Add{" "}
-          <code className="text-xs">NEXT_PUBLIC_SUPABASE_URL</code> and{" "}
-          <code className="text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> to
-          enable real accounts. Until then, walk straight in.
+          Sign-in is optional until Supabase keys are set. Open Tempo and
+          connect Apple Health from Settings.
         </p>
         <button
           onClick={() => router.push("/")}
           className="btn-ink w-full px-5 py-3 text-sm"
         >
-          Enter Tempo
+          Open Tempo
         </button>
       </div>
     );
@@ -87,7 +85,7 @@ export function LoginForm({ configured }: { configured: boolean }) {
               setError(null);
               setNotice(null);
             }}
-            className={`flex-1 rounded-full px-4 py-2 transition-all duration-300 ${
+            className={`flex-1 rounded-full px-4 py-2 ${
               mode === m ? "bg-white text-accent shadow-sm" : "text-ink/55"
             }`}
           >
@@ -105,7 +103,7 @@ export function LoginForm({ configured }: { configured: boolean }) {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
-        className="glass mb-4 w-full rounded-full px-5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent"
+        className="glass mb-4 w-full rounded-full px-5 py-3 text-sm text-ink outline-none focus:border-accent"
       />
 
       <label className="mb-1.5 block text-xs font-medium text-ink/60">
@@ -118,7 +116,7 @@ export function LoginForm({ configured }: { configured: boolean }) {
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="••••••••"
-        className="glass mb-6 w-full rounded-full px-5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent"
+        className="glass mb-6 w-full rounded-full px-5 py-3 text-sm text-ink outline-none focus:border-accent"
       />
 
       {error && <p className="mb-4 text-sm text-berry">{error}</p>}

@@ -7,7 +7,7 @@ export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Demo mode: no Supabase configured, no auth wall.
+  // Without Supabase, the product runs locally with no auth wall.
   if (!url || !anonKey) {
     return NextResponse.next({ request });
   }

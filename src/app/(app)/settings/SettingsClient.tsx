@@ -5,6 +5,16 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { CONNECTORS, type Connector } from "@/lib/connectors";
 import type { ConnectionStatus } from "@/lib/composio";
+import {
+  connectAppleHealth,
+  disconnectAppleHealth,
+  getAppleHealthStatus,
+} from "@/lib/healthkit";
+import {
+  connectAppleCalendar,
+  disconnectAppleCalendar,
+  getAppleCalendarStatus,
+} from "@/lib/eventkit";
 
 const AUTONOMY_LEVELS = [
   {
@@ -17,11 +27,13 @@ const AUTONOMY_LEVELS = [
   },
   {
     label: "Suggest",
-    blurb: "Proactive. Tempo proposes changes: buffers, moves, check-ins. You approve each one.",
+    blurb:
+      "Proactive. Tempo proposes changes: buffers, moves, check-ins. You approve each one.",
   },
   {
     label: "Act",
-    blurb: "Tempo reshapes your schedule within rules you set, and tells you what it did.",
+    blurb:
+      "Tempo reshapes your schedule within rules you set, and tells you what it did.",
   },
 ];
 
@@ -44,27 +56,40 @@ const DEFAULT_PREFS: Prefs = {
   goals: ["Better sleep", "Less stress"],
 };
 
+type LocalStatus = ConnectionStatus | "unavailable";
+
 export function SettingsClient({
   name,
   email,
-  isDemo,
   authEnabled,
 }: {
   name: string;
   email: string;
-  isDemo: boolean;
   authEnabled: boolean;
 }) {
   const router = useRouter();
   const [prefs, setPrefs] = useState<Prefs>(DEFAULT_PREFS);
   const [loaded, setLoaded] = useState(false);
 
-  const [connectorsEnabled, setConnectorsEnabled] = useState<boolean | null>(null);
-  const [statuses, setStatuses] = useState<Record<string, ConnectionStatus>>({});
+  const [connectorsEnabled, setConnectorsEnabled] = useState<boolean | null>(
+    null,
+  );
+  const [statuses, setStatuses] = useState<Record<string, LocalStatus>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const [fallbackLink, setFallbackLink] = useState<{ name: string; url: string } | null>(null);
+  const [fallbackLink, setFallbackLink] = useState<{
+    name: string;
+    url: string;
+  } | null>(null);
   const pollUntil = useRef(0);
+
+  const refreshNative = useCallback(() => {
+    setStatuses((s) => ({
+      ...s,
+      applehealth: getAppleHealthStatus(),
+      applecalendar: getAppleCalendarStatus(),
+    }));
+  }, []);
 
   const refreshConnections = useCallback(async () => {
     try {
@@ -74,30 +99,35 @@ export function SettingsClient({
         statuses: Record<string, ConnectionStatus>;
       };
       setConnectorsEnabled(data.enabled);
-      setStatuses(data.statuses ?? {});
+      setStatuses((s) => ({
+        ...s,
+        ...data.statuses,
+        applehealth: getAppleHealthStatus(),
+        applecalendar: getAppleCalendarStatus(),
+      }));
     } catch {
       setConnectorsEnabled(false);
+      refreshNative();
     }
-  }, []);
+  }, [refreshNative]);
 
   useEffect(() => {
     try {
       const raw = localStorage.getItem("tempo:prefs");
-      // localStorage doesn't exist during SSR; hydrate after mount.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (raw) setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(raw) });
     } catch {
       // Corrupt prefs: fall back to defaults.
     }
     setLoaded(true);
+    refreshNative();
     void refreshConnections();
-  }, [refreshConnections]);
+  }, [refreshConnections, refreshNative]);
 
   useEffect(() => {
     if (loaded) localStorage.setItem("tempo:prefs", JSON.stringify(prefs));
   }, [prefs, loaded]);
 
-  // While an OAuth window is open, poll for completion.
   useEffect(() => {
     const id = setInterval(() => {
       if (Date.now() < pollUntil.current) void refreshConnections();
@@ -105,8 +135,47 @@ export function SettingsClient({
     return () => clearInterval(id);
   }, [refreshConnections]);
 
+  async function connectNative(connector: Connector) {
+    setBusy(connector.id);
+    setConnectError(null);
+    try {
+      if (connector.provider === "healthkit") {
+        const res = await connectAppleHealth();
+        if (!res.ok) setConnectError(res.error ?? "Couldn't connect Apple Health.");
+      } else if (connector.provider === "eventkit") {
+        const res = await connectAppleCalendar();
+        if (!res.ok)
+          setConnectError(res.error ?? "Couldn't connect Apple Calendar.");
+      }
+      refreshNative();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function disconnectNative(connector: Connector) {
+    setBusy(connector.id);
+    setConnectError(null);
+    try {
+      if (connector.provider === "healthkit") await disconnectAppleHealth();
+      else if (connector.provider === "eventkit") await disconnectAppleCalendar();
+      refreshNative();
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function connect(connector: Connector) {
-    if (!connector.toolkit || busy) return;
+    if (busy) return;
+    if (
+      connector.provider === "healthkit" ||
+      connector.provider === "eventkit"
+    ) {
+      await connectNative(connector);
+      return;
+    }
+    if (connector.provider !== "composio" || !connector.toolkit) return;
+
     setBusy(connector.id);
     setConnectError(null);
     try {
@@ -115,10 +184,11 @@ export function SettingsClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ connectorId: connector.id }),
       });
-      const data = (await res.json()) as { redirectUrl?: string; error?: string };
+      const data = (await res.json()) as {
+        redirectUrl?: string;
+        error?: string;
+      };
       if (data.redirectUrl) {
-        // Popup blockers eat window.open; when that happens, surface the
-        // link so the user can open it themselves.
         const win = window.open(data.redirectUrl, "_blank", "noopener");
         if (!win) {
           setFallbackLink({ name: connector.name, url: data.redirectUrl });
@@ -138,7 +208,16 @@ export function SettingsClient({
   }
 
   async function disconnect(connector: Connector) {
-    if (!connector.toolkit || busy) return;
+    if (busy) return;
+    if (
+      connector.provider === "healthkit" ||
+      connector.provider === "eventkit"
+    ) {
+      await disconnectNative(connector);
+      return;
+    }
+    if (connector.provider !== "composio" || !connector.toolkit) return;
+
     setBusy(connector.id);
     setConnectError(null);
     try {
@@ -173,16 +252,15 @@ export function SettingsClient({
   const healthConnectors = CONNECTORS.filter((c) => c.kind === "health");
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <div className="rise rise-1 mb-10">
-        <p className="eyebrow mb-3 text-accent-deep">Settings</p>
-        <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">
+    <div className="mx-auto max-w-lg">
+      <div className="mb-8">
+        <p className="eyebrow mb-2 text-accent-deep">Settings</p>
+        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">
           Your rules.
         </h1>
       </div>
 
-      {/* Account */}
-      <Section className="rise rise-2" title="Account">
+      <Section title="Account">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-ink text-base font-semibold text-paper">
@@ -190,29 +268,21 @@ export function SettingsClient({
             </div>
             <div>
               <p className="text-sm font-semibold">{name}</p>
-              <p className="text-xs text-ink/50">
-                {email || "no email"}
-                {isDemo && " · demo mode"}
-              </p>
+              <p className="text-xs text-ink/50">{email || "Signed in locally"}</p>
             </div>
           </div>
-          {authEnabled && !isDemo ? (
+          {authEnabled ? (
             <button
               onClick={signOut}
-              className="rounded-full border border-white/60 bg-white/40 px-4 py-2 text-xs font-semibold text-ink/70 transition-colors hover:bg-white/70"
+              className="rounded-full border border-white/60 bg-white/40 px-4 py-2 text-xs font-semibold text-ink/70"
             >
               Sign out
             </button>
-          ) : (
-            <span className="text-[11px] text-ink/40">
-              Supabase auth off in demo
-            </span>
-          )}
+          ) : null}
         </div>
       </Section>
 
-      {/* Autonomy dial */}
-      <Section className="rise rise-3" title="Agent autonomy">
+      <Section title="Agent autonomy">
         <p className="mb-5 text-[13px] leading-relaxed text-ink/60">
           The dial between reactive and proactive. Tempo never does more than
           the level you&apos;ve granted.
@@ -222,10 +292,10 @@ export function SettingsClient({
             <button
               key={l.label}
               onClick={() => setPrefs((p) => ({ ...p, autonomy: i }))}
-              className={`flex-1 rounded-full px-2 py-2.5 transition-all duration-300 ${
+              className={`flex-1 rounded-full px-2 py-2.5 ${
                 prefs.autonomy === i
                   ? "bg-white text-accent shadow-sm"
-                  : "text-ink/50 hover:text-ink"
+                  : "text-ink/50"
               }`}
             >
               {l.label}
@@ -235,8 +305,7 @@ export function SettingsClient({
         <p className="text-[13px] leading-relaxed text-ink/70">{level.blurb}</p>
       </Section>
 
-      {/* Goals */}
-      <Section className="rise rise-4" title="What you're optimizing for">
+      <Section title="What you're optimizing for">
         <div className="flex flex-wrap gap-2">
           {GOALS.map((g) => {
             const on = prefs.goals.includes(g);
@@ -251,10 +320,10 @@ export function SettingsClient({
                       : [...p.goals, g],
                   }))
                 }
-                className={`rounded-full border px-4 py-2 text-[13px] font-medium transition-all duration-300 ${
+                className={`rounded-full border px-4 py-2 text-[13px] font-medium ${
                   on
                     ? "border-transparent bg-ink text-paper"
-                    : "border-white/60 bg-white/40 text-ink/60 hover:bg-white/70"
+                    : "border-white/60 bg-white/40 text-ink/60"
                 }`}
               >
                 {g}
@@ -264,37 +333,48 @@ export function SettingsClient({
         </div>
       </Section>
 
-      {/* Connectors */}
       <Section
-        className="rise rise-5"
-        title="Connectors"
-        sub="Life context, via MCP tools. Why your state is what it is."
+        title="On this iPhone"
+        sub="Apple Health and Calendar — native, no OAuth tabs."
       >
         <ConnectorList
-          items={contextConnectors}
-          enabled={connectorsEnabled}
+          items={CONNECTORS.filter((c) => c.iosNative)}
+          enabled={true}
           statuses={statuses}
           busy={busy}
           onConnect={connect}
           onDisconnect={disconnect}
-          onRefresh={refreshConnections}
+          onRefresh={refreshNative}
         />
       </Section>
 
-      {/* Wearables */}
       <Section
-        className="rise rise-6"
-        title="Wearables & health"
-        sub="Body state. What your body is doing."
+        title="Accounts"
+        sub="Google, email, and work tools via Composio."
       >
         <ConnectorList
-          items={healthConnectors}
+          items={contextConnectors.filter((c) => !c.iosNative)}
           enabled={connectorsEnabled}
           statuses={statuses}
           busy={busy}
           onConnect={connect}
           onDisconnect={disconnect}
-          onRefresh={refreshConnections}
+          onRefresh={() => void refreshConnections()}
+        />
+      </Section>
+
+      <Section
+        title="Wearables & health"
+        sub="Body state from Apple Health and other wearables."
+      >
+        <ConnectorList
+          items={healthConnectors.filter((c) => !c.iosNative)}
+          enabled={connectorsEnabled}
+          statuses={statuses}
+          busy={busy}
+          onConnect={connect}
+          onDisconnect={disconnect}
+          onRefresh={() => void refreshConnections()}
         />
       </Section>
 
@@ -316,7 +396,7 @@ export function SettingsClient({
       )}
 
       {connectError && (
-        <p className="rise mb-6 px-2 text-sm text-berry">{connectError}</p>
+        <p className="mb-6 px-2 text-sm text-berry">{connectError}</p>
       )}
     </div>
   );
@@ -326,21 +406,26 @@ function Section({
   title,
   sub,
   children,
-  className = "",
 }: {
   title: string;
   sub?: string;
   children: React.ReactNode;
-  className?: string;
 }) {
   return (
-    <section className={`glass-strong mb-5 rounded-[28px] p-6 ${className}`}>
+    <section className="glass-strong mb-4 rounded-[28px] p-5">
       <h2 className="mb-1 text-sm font-semibold">{title}</h2>
       {sub && <p className="mb-4 text-xs text-ink/50">{sub}</p>}
       {!sub && <div className="mb-4" />}
       {children}
     </section>
   );
+}
+
+function statusFor(item: Connector, statuses: Record<string, LocalStatus>) {
+  if (item.provider === "healthkit") return statuses.applehealth;
+  if (item.provider === "eventkit") return statuses.applecalendar;
+  if (item.toolkit) return statuses[item.toolkit];
+  return undefined;
 }
 
 function ConnectorList({
@@ -354,7 +439,7 @@ function ConnectorList({
 }: {
   items: Connector[];
   enabled: boolean | null;
-  statuses: Record<string, ConnectionStatus>;
+  statuses: Record<string, LocalStatus>;
   busy: string | null;
   onConnect: (c: Connector) => void;
   onDisconnect: (c: Connector) => void;
@@ -363,7 +448,14 @@ function ConnectorList({
   return (
     <ul className="divide-y divide-ink/5">
       {items.map((item) => {
-        const status = item.toolkit ? statuses[item.toolkit] : undefined;
+        const status = statusFor(item, statuses);
+        const isNative =
+          item.provider === "healthkit" || item.provider === "eventkit";
+        const canConnect =
+          item.provider === "composio" ||
+          item.provider === "healthkit" ||
+          item.provider === "eventkit";
+
         return (
           <li
             key={item.id}
@@ -381,11 +473,11 @@ function ConnectorList({
               <p className="text-xs text-ink/50">{item.detail}</p>
             </div>
 
-            {!item.toolkit ? (
+            {!canConnect || item.provider === "soon" ? (
               <span className="shrink-0 rounded-full bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-ink/40">
                 Soon
               </span>
-            ) : enabled === false ? (
+            ) : !isNative && enabled === false ? (
               <span
                 className="shrink-0 rounded-full bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-ink/40"
                 title="Set COMPOSIO_API_KEY to enable"
@@ -401,7 +493,7 @@ function ConnectorList({
                 <button
                   onClick={() => onDisconnect(item)}
                   disabled={busy !== null}
-                  className="rounded-full border border-white/60 bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-ink/55 transition-colors hover:bg-white/70 hover:text-berry disabled:opacity-50"
+                  className="rounded-full border border-white/60 bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-ink/55 disabled:opacity-50"
                 >
                   {busy === item.id ? "…" : "Disconnect"}
                 </button>
@@ -411,14 +503,13 @@ function ConnectorList({
                 <button
                   onClick={onRefresh}
                   className="rounded-full border border-accent/25 bg-accent/8 px-3 py-1.5 text-[11px] font-semibold text-accent-deep"
-                  title="Finish signing in, then press to refresh"
                 >
                   Finishing…
                 </button>
                 <button
                   onClick={() => onDisconnect(item)}
                   disabled={busy !== null}
-                  className="rounded-full border border-white/60 bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-ink/55 transition-colors hover:bg-white/70 hover:text-berry disabled:opacity-50"
+                  className="rounded-full border border-white/60 bg-white/40 px-3 py-1.5 text-[11px] font-semibold text-ink/55 disabled:opacity-50"
                 >
                   {busy === item.id ? "…" : "Cancel"}
                 </button>

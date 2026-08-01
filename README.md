@@ -2,7 +2,7 @@
 
 Your schedule affects your health. We show you how.
 
-This branch (`app`) is the **product web app** — login, Pulse, Calendar, Insights, Chat, Settings.
+This branch (`app`) is the **iPhone-first product** — Pulse, Calendar, Insights, Chat, Settings — with a bottom tab bar and native Apple Health / Calendar hooks for the iOS shell.
 
 ## Branches
 
@@ -24,18 +24,16 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-With no env vars the app runs in **demo mode** (mock data, no auth wall).
-
-Test account (when Supabase is configured): `sid@tempo.health` / `tempo-demo-2026`.
+Without Supabase keys the app opens locally (no auth wall). Connect **Apple Health** and **Apple Calendar** from Settings — they use the on-device bridge when running inside the iOS shell.
 
 ## Env
 
 See `.env.example`:
 
-- **Supabase** — auth + DB
-- **OpenAI** — chat (optional; falls back to built-in engine)
-- **Composio** — Google Calendar, Gmail, and other connectors
+- **Supabase** — auth + DB (optional)
+- **OpenAI** — chat + Gmail intelligence
+- **Composio** — Google Calendar, Gmail, Slack, Notion, WHOOP, Fitbit, Strava, Oura
 
 ## Stack
 
-Next.js (App Router) · Tailwind v4 · Supabase · OpenAI · Composio · Vercel
+Next.js (App Router) · Tailwind v4 · Supabase · OpenAI · Composio · Capacitor (ios branch)

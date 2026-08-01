@@ -4,7 +4,7 @@ import { getGmailProposals, proposalToCalEvent } from "./gmail";
 import { executeTool, getComposio, getConnectionStatuses } from "./composio";
 
 export interface CalendarData {
-  /** Which live sources contributed events (demo data is always included). */
+  /** Which live sources contributed events. */
   live: ("google" | "gmail")[];
   events: CalEvent[];
 }
@@ -165,9 +165,8 @@ export async function getLiveEvents(
 }
 
 /**
- * Everything visible at once: generated demo events as the base layer, with
- * real Google Calendar events and Gmail-detected proposals merged on top
- * when those sources are connected.
+ * Calendar for the range: seed events as the base layer, with live Google
+ * Calendar events and Gmail-detected proposals merged when connected.
  */
 export async function getCalendarData(
   start: Date,
@@ -175,5 +174,9 @@ export async function getCalendarData(
 ): Promise<CalendarData> {
   const base = eventsForRange(start, days);
   const { events: liveEvents, live } = await getLiveEvents(start, days);
+  // Prefer live-only when Google is connected — no seed noise on the grid.
+  if (live.includes("google")) {
+    return { live, events: [...liveEvents] };
+  }
   return { live, events: [...base, ...liveEvents] };
 }

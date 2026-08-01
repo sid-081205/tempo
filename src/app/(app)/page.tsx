@@ -8,6 +8,7 @@ import {
   dayKey,
 } from "@/lib/mock";
 import { getLiveEvents } from "@/lib/calendar";
+import { withTimeout } from "@/lib/fast";
 import { formatDayLabelFull } from "@/lib/format";
 import { getAppUser } from "@/lib/user";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -16,14 +17,18 @@ import { PulseClient } from "./PulseClient";
 export const dynamic = "force-dynamic";
 
 export default async function PulsePage() {
-  const user = await getAppUser();
+  // Auth + live overlay in parallel; live sources hard-capped so navigation
+  // never waits on Gmail/OpenAI/Composio.
+  const [user, live] = await Promise.all([
+    getAppUser(),
+    withTimeout(
+      getLiveEvents(addDays(todayUtc(), -7), 9),
+      900,
+      { events: [], live: [] as ("google" | "gmail")[] },
+    ),
+  ]);
 
-  // Real events (Google Calendar + Gmail proposals) overlay the graphs.
-  const { events: liveEvents } = await getLiveEvents(
-    addDays(todayUtc(), -7),
-    9,
-  );
-
+  const liveEvents = live.events;
   const windows = {
     "6h": getPulseWindow("6h", liveEvents),
     "24h": getPulseWindow("24h", liveEvents),
