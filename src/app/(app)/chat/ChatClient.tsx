@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion } from "motion/react";
 import { LogoTile } from "@/components/Logo";
 
 interface Message {
@@ -28,10 +27,9 @@ export function ChatClient() {
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Scroll only the messages pane, never the page.
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages, thinking]);
 
   async function send(text: string) {
@@ -70,24 +68,21 @@ export function ChatClient() {
   const showSuggestions = messages.length === 1;
 
   return (
-    <div className="mx-auto flex h-[calc(100dvh-200px)] min-h-[420px] max-w-2xl flex-col">
-      <div className="rise rise-1 mb-6 shrink-0 text-center">
+    <div className="mx-auto flex h-[calc(100dvh-8.5rem)] min-h-[380px] max-w-lg flex-col">
+      <div className="mb-4 shrink-0 text-center">
         <p className="eyebrow mb-2 text-accent-deep">Tempo</p>
-        <h1 className="text-3xl font-medium tracking-tight sm:text-4xl">
+        <h1 className="text-3xl font-medium tracking-tight">
           Ask <span className="italic text-accent-deep">why.</span>
         </h1>
       </div>
 
       <div
         ref={scrollRef}
-        className="rise rise-2 no-scrollbar flex-1 space-y-4 overflow-y-auto px-1 pb-2"
+        className="no-scrollbar flex-1 space-y-3 overflow-y-auto px-1 pb-2"
       >
         {messages.map((m, i) => (
-          <motion.div
+          <div
             key={i}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className={`flex items-end gap-2.5 ${
               m.role === "user" ? "justify-end" : "justify-start"
             }`}
@@ -104,46 +99,28 @@ export function ChatClient() {
             >
               {m.content}
             </div>
-          </motion.div>
+          </div>
         ))}
 
         {thinking && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-end gap-2.5"
-          >
+          <div className="flex items-end gap-2.5">
             <LogoTile size={30} className="mb-1 shrink-0" />
-            <div className="glass-strong flex gap-1.5 rounded-3xl rounded-bl-lg px-5 py-4">
-              {[0, 1, 2].map((i) => (
-                <motion.span
-                  key={i}
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{
-                    duration: 0.9,
-                    repeat: Infinity,
-                    delay: i * 0.15,
-                  }}
-                  className="h-1.5 w-1.5 rounded-full bg-ink/40"
-                />
-              ))}
+            <div className="glass-strong rounded-3xl rounded-bl-lg px-5 py-3.5 text-sm text-ink/45">
+              Thinking…
             </div>
-          </motion.div>
+          </div>
         )}
 
         {showSuggestions && (
-          <div className="flex flex-wrap justify-center gap-2 pt-4">
-            {SUGGESTIONS.map((s, i) => (
-              <motion.button
+          <div className="flex flex-wrap justify-center gap-2 pt-3">
+            {SUGGESTIONS.map((s) => (
+              <button
                 key={s}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + i * 0.1 }}
                 onClick={() => send(s)}
-                className="glass rounded-full px-4 py-2.5 text-[13px] font-medium text-ink/70 transition-colors hover:bg-white/70"
+                className="glass rounded-full px-4 py-2.5 text-[13px] font-medium text-ink/70"
               >
                 {s}
-              </motion.button>
+              </button>
             ))}
           </div>
         )}
@@ -154,9 +131,9 @@ export function ChatClient() {
           e.preventDefault();
           send(input);
         }}
-        className="rise rise-3 mt-4 shrink-0"
+        className="mt-3 shrink-0"
       >
-        <div className="glass-strong flex items-center gap-2 rounded-full p-2 pl-6">
+        <div className="glass-strong flex items-center gap-2 rounded-full p-2 pl-5">
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}

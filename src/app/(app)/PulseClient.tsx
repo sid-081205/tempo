@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import type { MetricSeries, PulseWindow, Range } from "@/lib/mock";
 import type { DayMetrics, Workout } from "@/lib/types";
 import { formatShortDay, formatTime } from "@/lib/format";
@@ -61,19 +60,15 @@ export function PulseClient({
 
   return (
     <div>
-      {/* Header */}
-      <div className="rise rise-1 mb-6">
-        <p className="eyebrow mb-3 text-accent-deep">{dateLabel}</p>
-        <h1 className="mb-3 text-4xl font-medium tracking-tight sm:text-5xl">
+      <div className="mb-5">
+        <p className="eyebrow mb-2 text-accent-deep">{dateLabel}</p>
+        <h1 className="mb-2 text-3xl font-medium tracking-tight sm:text-4xl">
           {greeting}
         </h1>
-        <p className="max-w-xl text-base leading-relaxed text-ink/70">
-          {story}
-        </p>
+        <p className="max-w-xl text-sm leading-relaxed text-ink/70">{story}</p>
       </div>
 
-      {/* At a glance */}
-      <div className="rise rise-2 no-scrollbar -mx-1 mb-8 flex items-stretch gap-2.5 overflow-x-auto px-1 pb-1">
+      <div className="no-scrollbar -mx-1 mb-6 flex items-stretch gap-2 overflow-x-auto px-1 pb-1">
         <div className="glass flex shrink-0 items-center gap-3 rounded-full py-2 pl-2.5 pr-5">
           <RecoveryRing value={today.recovery} />
           <div>
@@ -81,7 +76,11 @@ export function PulseClient({
               Recovery
             </p>
             <p className="text-sm font-semibold leading-tight">
-              {today.recovery >= 70 ? "Ready" : today.recovery >= 45 ? "Steady" : "Take it easy"}
+              {today.recovery >= 70
+                ? "Ready"
+                : today.recovery >= 45
+                  ? "Steady"
+                  : "Take it easy"}
             </p>
           </div>
         </div>
@@ -91,18 +90,17 @@ export function PulseClient({
         <GlanceChip label="Meetings" value={`${today.meetingHours} h`} />
       </div>
 
-      {/* Controls: range + events */}
-      <SectionLabel className="rise rise-3">Right now</SectionLabel>
-      <div className="rise rise-3 mb-4 flex flex-wrap items-center justify-between gap-3">
+      <SectionLabel>Right now</SectionLabel>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="glass flex rounded-full p-1 text-xs font-semibold">
           {RANGES.map((r) => (
             <button
               key={r.id}
               onClick={() => changeRange(r.id)}
-              className={`rounded-full px-4 py-2 transition-all duration-300 ${
+              className={`rounded-full px-4 py-2 ${
                 range === r.id
                   ? "bg-white text-accent shadow-sm"
-                  : "text-ink/55 hover:text-ink"
+                  : "text-ink/55"
               }`}
             >
               {r.label}
@@ -111,22 +109,22 @@ export function PulseClient({
         </div>
         <p className="flex items-center gap-1.5 text-xs text-ink/45">
           <span className="h-1.5 w-1.5 rounded-full bg-accent/60" />
-          Press an event to see its impact on every graph below.
+          Press an event to see its impact.
         </p>
       </div>
 
       {chipEvents.length > 0 && (
-        <div className="rise rise-3 no-scrollbar -mx-1 mb-4 flex gap-2 overflow-x-auto px-1 pb-1">
+        <div className="no-scrollbar -mx-1 mb-3 flex gap-2 overflow-x-auto px-1 pb-1">
           {chipEvents.map((e) => {
             const active = selectedId === e.id;
             return (
               <button
                 key={e.id}
                 onClick={() => selectEvent(active ? null : e.id)}
-                className={`flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all duration-300 ${
+                className={`flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium ${
                   active
                     ? "border-transparent bg-ink text-paper"
-                    : "border-white/60 bg-white/40 text-ink/70 hover:bg-white/70"
+                    : "border-white/60 bg-white/40 text-ink/70"
                 }`}
               >
                 <span
@@ -143,25 +141,14 @@ export function PulseClient({
         </div>
       )}
 
-      {/* Selected event, across every metric */}
-      <AnimatePresence>
-        {selected && (
-          <motion.div
-            key={selected.id}
-            initial={{ opacity: 0, y: 10, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: "auto" }}
-            exit={{ opacity: 0, y: 6, height: 0 }}
-            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="mb-4 overflow-hidden"
-          >
-            <EventDetail event={selected} />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {selected && (
+        <div className="mb-3">
+          <EventDetail event={selected} />
+        </div>
+      )}
 
-      {/* Stacked metric graphs */}
       <div className="flex flex-col gap-3">
-        {win.metrics.map((metric, i) => (
+        {win.metrics.map((metric) => (
           <MetricPanel
             key={metric.id}
             metric={metric}
@@ -169,18 +156,15 @@ export function PulseClient({
             range={range}
             selectedId={selectedId}
             onSelectAction={selectEvent}
-            className={`rise rise-${Math.min(6, i + 3)}`}
           />
         ))}
 
-        {/* Daily metrics, same stacked pattern */}
-        <SectionLabel className="rise rise-6 mt-4">Day by day</SectionLabel>
+        <SectionLabel className="mt-3">Day by day</SectionLabel>
         <SimplePanel
           label="Sleep"
           value={`${today.sleepHours} h`}
           sub={`score ${today.sleepScore} · efficiency ${today.sleepEfficiency}%`}
           dot={STAGE_COLORS.deep}
-          className="rise rise-6"
         >
           <DailyBars
             points={metrics.map((m, i) => ({
@@ -215,7 +199,6 @@ export function PulseClient({
           value={`${today.recovery}`}
           sub="of 100 · last 14 days"
           dot="hsl(140 32% 40%)"
-          className="rise rise-6"
         >
           <DailyBars
             points={metrics.map((m, i) => ({
@@ -231,7 +214,6 @@ export function PulseClient({
           value={`${today.restingHr} bpm`}
           sub="last 14 days"
           dot="hsl(0 45% 50%)"
-          className="rise rise-6"
         >
           <DailyLine
             points={metrics.map((m, i) => point(i, m.restingHr))}
@@ -246,7 +228,6 @@ export function PulseClient({
           sub="in the last 7 days"
           dot="hsl(140 32% 40%)"
           defaultOpen={false}
-          className="rise rise-6"
         >
           <ul className="space-y-2.5">
             {workouts.slice(0, 5).map((w) => (
@@ -286,14 +267,13 @@ export function PulseClient({
           </ul>
         </SimplePanel>
 
-        <SectionLabel className="rise rise-6 mt-4">You</SectionLabel>
+        <SectionLabel className="mt-3">You</SectionLabel>
         <SimplePanel
           label="Journal"
           value="Check in"
           sub="what sensors miss"
           dot="hsl(55 24% 25%)"
           defaultOpen={false}
-          className="rise rise-6"
         >
           <Journal authEnabled={authEnabled} />
         </SimplePanel>
@@ -301,10 +281,6 @@ export function PulseClient({
     </div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/* Panels                                                              */
-/* ------------------------------------------------------------------ */
 
 function SectionLabel({
   children,
@@ -314,7 +290,7 @@ function SectionLabel({
   className?: string;
 }) {
   return (
-    <div className={`flex items-center gap-3 px-1 ${className}`}>
+    <div className={`mb-2 flex items-center gap-3 px-1 ${className}`}>
       <span className="eyebrow text-ink/40">{children}</span>
       <span className="h-px flex-1 bg-ink/8" />
     </div>
@@ -376,7 +352,6 @@ function PanelShell({
   dot,
   defaultOpen = true,
   children,
-  className = "",
 }: {
   label: string;
   value: string;
@@ -384,14 +359,11 @@ function PanelShell({
   dot?: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
-  className?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section
-      className={`glass-strong rounded-3xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_60px_-30px_rgba(0,0,0,0.22)] ${className}`}
-    >
+    <section className="glass-strong rounded-3xl">
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
@@ -410,10 +382,10 @@ function PanelShell({
               <span className="ml-1.5 text-xs font-normal text-ink/45">{sub}</span>
             )}
           </span>
-          <motion.span
-            animate={{ rotate: open ? 180 : 0 }}
-            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/50 text-ink/55"
+          <span
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/50 text-ink/55 transition-transform duration-150 ${
+              open ? "rotate-180" : ""
+            }`}
           >
             <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
               <path
@@ -424,23 +396,11 @@ function PanelShell({
                 strokeLinejoin="round"
               />
             </svg>
-          </motion.span>
+          </span>
         </span>
       </button>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="px-5 pb-5">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {open && <div className="px-5 pb-5">{children}</div>}
     </section>
   );
 }
@@ -451,14 +411,12 @@ function MetricPanel({
   range,
   selectedId,
   onSelectAction,
-  className,
 }: {
   metric: MetricSeries;
   window: PulseWindow;
   range: Range;
   selectedId: string | null;
   onSelectAction: (id: string | null) => void;
-  className?: string;
 }) {
   const current =
     metric.id === "calories" || metric.id === "strain"
@@ -475,24 +433,13 @@ function MetricPanel({
       value={`${current}${metric.unit ? ` ${metric.unit}` : ""}`}
       sub={cumulative ? `in the last ${rangeLabel}` : "now"}
       dot={metric.color}
-      className={className}
     >
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={range}
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        >
-          <MetricChart
-            metric={metric}
-            window={win}
-            selectedId={selectedId}
-            onSelectAction={onSelectAction}
-          />
-        </motion.div>
-      </AnimatePresence>
+      <MetricChart
+        metric={metric}
+        window={win}
+        selectedId={selectedId}
+        onSelectAction={onSelectAction}
+      />
     </PanelShell>
   );
 }
@@ -504,7 +451,6 @@ function SimplePanel(props: {
   dot?: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
-  className?: string;
 }) {
   return <PanelShell {...props} />;
 }

@@ -4,6 +4,7 @@ import {
   deleteToolkitAccounts,
   getComposio,
   getConnectionStatuses,
+  invalidateConnectionCache,
 } from "@/lib/composio";
 import { CONNECTORS } from "@/lib/connectors";
 
@@ -38,9 +39,14 @@ export async function POST(request: Request) {
   if (!connector) {
     return NextResponse.json({ error: "Unknown connector." }, { status: 400 });
   }
-  if (!connector.toolkit) {
+  if (connector.provider !== "composio" || !connector.toolkit) {
     return NextResponse.json(
-      { error: `${connector.name} isn't connectable yet.` },
+      {
+        error:
+          connector.provider === "healthkit" || connector.provider === "eventkit"
+            ? `${connector.name} connects on-device from Settings — no OAuth needed.`
+            : `${connector.name} isn't connectable yet.`,
+      },
       { status: 400 },
     );
   }
@@ -64,6 +70,7 @@ export async function POST(request: Request) {
         })
       : await composio.toolkits.authorize(composioUserId(), connector.toolkit);
 
+    invalidateConnectionCache();
     return NextResponse.json({ redirectUrl: connectionRequest.redirectUrl });
   } catch (err) {
     const message = String(err);
@@ -91,7 +98,7 @@ export async function DELETE(request: Request) {
 
   const { connectorId } = (await request.json()) as { connectorId?: string };
   const connector = CONNECTORS.find((c) => c.id === connectorId);
-  if (!connector?.toolkit) {
+  if (!connector || connector.provider !== "composio" || !connector.toolkit) {
     return NextResponse.json({ error: "Unknown connector." }, { status: 400 });
   }
 

@@ -22,31 +22,53 @@ export function composioUserId(): string {
 
 export type ConnectionStatus = "connected" | "pending" | "disconnected";
 
-/** Map of toolkit slug -> connection status for our user. */
+let statusCache: { at: number; map: Record<string, ConnectionStatus> } | null =
+  null;
+let statusInflight: Promise<Record<string, ConnectionStatus>> | null = null;
+const STATUS_TTL_MS = 30_000;
+
+export function invalidateConnectionCache() {
+  statusCache = null;
+}
+
+/** Map of toolkit slug -> connection status for our user. Cached briefly. */
 export async function getConnectionStatuses(): Promise<
   Record<string, ConnectionStatus>
 > {
   const composio = getComposio();
   if (!composio) return {};
-
-  const res = await composio.connectedAccounts.list({
-    userIds: [composioUserId()],
-  });
-
-  const map: Record<string, ConnectionStatus> = {};
-  for (const item of res.items ?? []) {
-    const slug = item.toolkit?.slug?.toLowerCase();
-    if (!slug) continue;
-    const status =
-      item.status === "ACTIVE"
-        ? "connected"
-        : item.status === "INITIATED" || item.status === "INITIALIZING"
-          ? "pending"
-          : "disconnected";
-    // Prefer the strongest status if several accounts exist for a toolkit.
-    if (map[slug] !== "connected") map[slug] = status;
+  if (statusCache && Date.now() - statusCache.at < STATUS_TTL_MS) {
+    return statusCache.map;
   }
-  return map;
+  if (statusInflight) return statusInflight;
+
+  statusInflight = (async () => {
+    try {
+      const res = await composio.connectedAccounts.list({
+        userIds: [composioUserId()],
+      });
+
+      const map: Record<string, ConnectionStatus> = {};
+      for (const item of res.items ?? []) {
+        const slug = item.toolkit?.slug?.toLowerCase();
+        if (!slug) continue;
+        const status =
+          item.status === "ACTIVE"
+            ? "connected"
+            : item.status === "INITIATED" || item.status === "INITIALIZING"
+              ? "pending"
+              : "disconnected";
+        // Prefer the strongest status if several accounts exist for a toolkit.
+        if (map[slug] !== "connected") map[slug] = status;
+      }
+      statusCache = { at: Date.now(), map };
+      return map;
+    } finally {
+      statusInflight = null;
+    }
+  })();
+
+  return statusInflight;
 }
 
 /**
@@ -77,6 +99,7 @@ export async function deleteToolkitAccounts(
     try {
       await composio.connectedAccounts.delete(item.id);
       deleted++;
+      statusCache = null;
     } catch {
       // Best effort; a failed delete shouldn't block the rest.
     }

@@ -11,7 +11,6 @@ export default async function SettingsPage() {
     <SettingsClient
       name={user.name}
       email={user.email}
-      isDemo={user.isDemo}
       authEnabled={isSupabaseConfigured}
     />
   );

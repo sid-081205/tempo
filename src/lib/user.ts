@@ -1,15 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
-import { DEMO_USER, isSupabaseConfigured } from "@/lib/supabase/config";
+import { LOCAL_USER, isSupabaseConfigured } from "@/lib/supabase/config";
 
 export interface AppUser {
   name: string;
   email: string;
-  isDemo: boolean;
 }
 
 export async function getAppUser(): Promise<AppUser> {
   if (!isSupabaseConfigured) {
-    return { ...DEMO_USER, isDemo: true };
+    return { ...LOCAL_USER };
   }
   const supabase = await createClient();
   const {
@@ -17,7 +16,7 @@ export async function getAppUser(): Promise<AppUser> {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return { ...DEMO_USER, isDemo: true };
+    return { ...LOCAL_USER };
   }
 
   const rawName =
@@ -26,5 +25,5 @@ export async function getAppUser(): Promise<AppUser> {
     "there";
   const name = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 
-  return { name, email: user.email ?? "", isDemo: false };
+  return { name, email: user.email ?? "" };
 }
